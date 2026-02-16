@@ -1,9 +1,7 @@
 import axios from 'axios';
 
-export const API_BASE_URL = "http://localhost:2000";
-
 const API = axios.create({
-  baseURL: 'http://localhost:2000/api' 
+  baseURL: 'https://orders.api.teckvora.com/api' 
 });
 
 
