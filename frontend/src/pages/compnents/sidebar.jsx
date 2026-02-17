@@ -40,6 +40,7 @@ export default function Sidebar({ onClose }) {
 
         <MenuTitle title="Orders" />
         <MenuItem to="/daraz-orders" icon={Zap} label="Daraz Orders" onClick={onClose} />
+         <MenuItem to="/product-moving-trend" icon={Zap} label="Daraz Product Trend" onClick={onClose} />
 
       </nav>
 
