@@ -1,17 +1,25 @@
 const cron = require("node-cron");
-const db = require("../db/db");
-const { fetchOrders } = require("../services/daraz_service");
+const { syncOrders } = require("../controllers/daraz/daraz_order_controller");
 
-cron.schedule("*/5 * * * *", async () => {
-  console.log("🔄 Syncing Daraz Orders...");
+let isRunning = false;
 
-  const [accounts] = await db.query(
-    "SELECT * FROM daraz_accounts"
-  );
+console.log("Order Sync Cron Initialized");
 
-  for (let account of accounts) {
-    await fetchOrders(account);
+cron.schedule("*/10 * * * *", async () => {
+  if (isRunning) {
+    console.log("Sync already running... skipping");
+    return;
   }
 
-  console.log("Sync Completed");
+  isRunning = true;
+  console.log("Starting Order Sync:", new Date().toISOString());
+
+  try {
+    await syncOrders();
+    console.log("Order Sync Completed");
+  } catch (err) {
+    console.error("Order Sync Failed:", err.message);
+  }
+
+  isRunning = false;
 });
