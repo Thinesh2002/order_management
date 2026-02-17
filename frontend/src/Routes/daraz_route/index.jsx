@@ -3,6 +3,7 @@ import Layout from "../../pages/compnents/Layout";
 import ProtectedRoute from "../../config/ProtectedRoute";
 import Daraz_orders from "../../pages/daraz/Orders/index";
 import DarazOrdersDetailPage from "../../pages/daraz/Orders/detail_page/index";
+import ProductTrend from "../../pages/daraz/product trend/index"
 
 const Daraz_Routes = (
   <>
@@ -22,6 +23,16 @@ const Daraz_Routes = (
         <ProtectedRoute>
           <Layout>
             <DarazOrdersDetailPage />
+          </Layout>
+        </ProtectedRoute>
+      }
+    />
+        <Route
+      path="/product-moving-trend"
+      element={
+        <ProtectedRoute>
+          <Layout>
+            <ProductTrend />
           </Layout>
         </ProtectedRoute>
       }

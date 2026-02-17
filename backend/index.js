@@ -4,6 +4,7 @@ const cors = require("cors");
 
 const authRoutes = require("./routes/user_route");
 const darazRoutes = require("./routes/daraz/daraz_order_route");
+const productTrendRoutes = require("./routes/daraz/productTrendRoutes");
 
 require("./cron/oder_sync");
 
@@ -14,6 +15,7 @@ app.use(express.json());
 
 app.use("/api/user", authRoutes);
 app.use("/api/daraz", darazRoutes);
+app.use("/api/daraz/analytics", productTrendRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
