@@ -7,7 +7,7 @@ import {
   Search, Package, DollarSign, TrendingUp, 
   Clock, CheckCircle2, XCircle, 
   Truck, Box, CalendarDays, Calendar as CalendarIcon,
-  Store, ChevronDown, Check
+  Store, ChevronDown, Check, Layers
 } from "lucide-react";
 
 // --- MULTI-SELECT STATUS DROPDOWN COMPONENT ---
@@ -154,13 +154,14 @@ function StatusBadge({ status }) {
       case 'shipped': return "bg-blue-50 text-blue-600 border-blue-100";
       case 'canceled': return "bg-rose-50 text-rose-600 border-rose-100";
       case 'packed': return "bg-amber-50 text-amber-600 border-amber-100";
+      case 'shipped_back_success': return "bg-slate-100 text-slate-600 border-slate-200";
       case 'ready_to_ship': return "bg-indigo-50 text-indigo-600 border-indigo-100";
       default: return "bg-slate-50 text-slate-500 border-slate-100";
     }
   };
   return (
-    <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase border ${getStyle(status)}`}>
-      {status?.replace('_', ' ')}
+    <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase border whitespace-nowrap ${getStyle(status)}`}>
+      {status?.replace(/_/g, ' ')}
     </span>
   );
 }
@@ -201,7 +202,8 @@ export default function OrdersPage() {
       const kw = search.toLowerCase();
       data = data.filter(o => 
         String(o.order_id).includes(kw) || 
-        String(o.customer_first_name).toLowerCase().includes(kw)
+        String(o.customer_first_name).toLowerCase().includes(kw) ||
+        o.products?.some(p => p.title.toLowerCase().includes(kw))
       );
     }
 
@@ -265,7 +267,7 @@ export default function OrdersPage() {
         }
       `}</style>
 
-      <div className="max-w-[1600px] mx-auto">
+      <div className="max-w-[1600px] mx-auto p-4 sm:p-8">
         
         {/* HEADER */}
         <header className="mb-8 flex flex-wrap justify-between items-center gap-5">
@@ -323,7 +325,7 @@ export default function OrdersPage() {
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
           <input 
             className="w-full pl-14 pr-6 py-4.5 rounded-[22px] border border-slate-200 bg-white shadow-sm outline-none focus:ring-4 focus:ring-blue-100 transition-all font-semibold text-slate-700"
-            placeholder="Search Order ID, Customer name or account..." 
+            placeholder="Search Order ID, Customer name or Product title..." 
             onChange={e => setSearch(e.target.value)}
           />
         </div>
@@ -331,11 +333,13 @@ export default function OrdersPage() {
         {/* TABLE */}
         <div className="bg-white rounded-[32px] shadow-xl border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[1000px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
                   <th className="p-6 text-[10px] font-black uppercase text-slate-400 tracking-widest">Order Info</th>
-                  <th className="p-6 text-[10px] font-black uppercase text-slate-400 tracking-widest">Customer</th>
+                  {/* PUTHU PRODUCT COLUMN */}
+                  <th className="p-6 text-[10px] font-black uppercase text-slate-400 tracking-widest">Items</th>
+                  <th className="p-6 text-[10px] font-black uppercase text-slate-400 tracking-widest">Customer & Location</th>
                   <th className="p-6 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Status</th>
                   <th className="p-6 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Amount</th>
                 </tr>
@@ -347,21 +351,89 @@ export default function OrdersPage() {
                     onClick={() => window.open(`/daraz-orders/${o.order_id}`, "_blank")}
                     className="hover:bg-slate-50/80 cursor-pointer transition-colors"
                   >
-                    <td className="p-6">
+                    {/* Order Info */}
+                    <td className="p-6 align-top">
                       <div className="font-black text-slate-900 text-[15px]">#{o.order_id}</div>
-                      <div className="text-[10px] font-black text-blue-500 mt-1 uppercase tracking-tight">{o.account_name}</div>
-                    </td>
-                    <td className="p-6">
-                      <div className="font-bold text-slate-700">{o.customer_first_name}</div>
-                      <div className="text-[11px] text-slate-400 font-semibold mt-1 flex items-center gap-1.5">
-                        <CalendarDays size={12} /> {new Date(o.created_at).toLocaleDateString()}
+                      <div className="text-[10px] font-black text-blue-500 mt-1 uppercase tracking-tight flex items-center gap-1">
+                        <Store size={10} /> {o.account_name}
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-bold mt-2 uppercase">
+                        {o.payment_method || 'N/A'}
                       </div>
                     </td>
-                    <td className="p-6 text-center">
-                      <StatusBadge status={o.statuses?.[0]} />
+
+                    {/* Product Details - Backend Response structure path used here */}
+                    <td className="p-6 align-top">
+                      <div className="space-y-3 max-w-[350px]">
+                        {o.products && o.products.length > 0 ? (
+                          o.products.map((prod, idx) => (
+                            <div key={idx} className="flex items-center gap-3 bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+                              <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-white border border-slate-200">
+                                <img 
+                                  src={prod.image} 
+                                  alt="product" 
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => { e.target.src = "https://via.placeholder.com/100"; }}
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-[11px] font-bold text-slate-700 line-clamp-1 leading-tight">
+                                  {prod.title}
+                                </p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-[9px] font-black text-slate-400 uppercase">SKU: {prod.sku?.split('-')[0]}</span>
+                                  <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-1.5 rounded">Rs {prod.price}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-slate-300 text-[10px] font-black uppercase italic">No Product Data</div>
+                        )}
+                        {o.items_count > (o.products?.length || 0) && (
+                           <div className="text-[10px] font-black text-slate-400 pl-2">
+                             + {o.items_count - o.products.length} more items...
+                           </div>
+                        )}
+                      </div>
                     </td>
-                    <td className="p-6 text-right font-black text-blue-900 text-base italic tracking-tighter">
-                      Rs {parseFloat(o.price).toLocaleString()}
+
+                    {/* Customer */}
+                    <td className="p-6 align-top">
+                      <div className="font-bold text-slate-700">{o.address_shipping?.first_name || o.customer_first_name || 'Guest'}</div>
+                      <div className="text-[11px] text-slate-400 font-semibold mt-1 flex items-center gap-1.5">
+                        <CalendarDays size={12} className="text-slate-300" /> {new Date(o.created_at).toLocaleDateString()}
+                      </div>
+                      <div className="text-[10px] font-black text-slate-400 uppercase mt-2 flex items-center gap-1">
+                        <Layers size={10} /> {o.address_shipping?.city}, {o.address_shipping?.address3}
+                      </div>
+                    </td>
+
+                    {/* Status */}
+                    <td className="p-6 text-center align-top">
+                      <div className="flex flex-col items-center gap-2">
+                        <StatusBadge status={o.statuses?.[0]} />
+                        {o.warehouse_code && (
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter italic">
+                            {o.warehouse_code}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Amount */}
+                    <td className="p-6 text-right align-top">
+                      <div className="font-black text-blue-900 text-base italic tracking-tighter">
+                        Rs {parseFloat(o.price).toLocaleString()}
+                      </div>
+                      {parseFloat(o.voucher) > 0 && (
+                        <div className="text-[10px] font-black text-rose-500 mt-1 uppercase">
+                          Disc: -{o.voucher}
+                        </div>
+                      )}
+                      <div className="text-[10px] font-bold text-slate-400 mt-1">
+                         Fee: Rs {o.shipping_fee}
+                      </div>
                     </td>
                   </tr>
                 ))}

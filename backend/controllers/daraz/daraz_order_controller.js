@@ -58,14 +58,42 @@ exports.getOrders = async (req, res) => {
                     const orders = response.data?.data?.orders || [];
                     if (orders.length === 0) break;
 
-                    orders.forEach(order => {
+                    for (const order of orders) {
+
+                        // ✅ Fetch Order Items (Product Details)
+                        const itemParams = {
+                            app_key: account.app_key,
+                            access_token: account.access_token,
+                            timestamp: Date.now().toString(),
+                            sign_method: "sha256",
+                            order_id: order.order_id
+                        };
+
+                        itemParams.sign = generateSignature(itemsPath, itemParams, account.app_secret);
+
+                        const itemResponse = await axios.get(
+                            `${account.api_base}${itemsPath}`,
+                            { params: itemParams }
+                        );
+
+                        const items = itemResponse.data?.data || [];
+
                         if (!masterOrderMap.has(order.order_id)) {
                             masterOrderMap.set(order.order_id, {
                                 ...order,
-                                account_name: account.account_name
+                                account_name: account.account_name,
+                                products: items.map(item => ({
+                                    title: item.name,
+                                    sku: item.sku,
+                                    seller_sku: item.seller_sku,
+                                    product_id: item.product_id,
+                                    quantity: item.quantity,
+                                    price: item.item_price,
+                                    image: item.product_main_image
+                                }))
                             });
                         }
-                    });
+                    }
 
                     if (orders.length < 100) hasMore = false;
                     else offset += 100;
