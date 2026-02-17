@@ -7,7 +7,8 @@ exports.getProductTrend = async () => {
             oi.product_name,
             oi.sku,
 
-            MAX(oi.product_image) AS product_image,   
+            
+            MAX(oi.image) AS product_image,
 
             COUNT(DISTINCT CASE 
                 WHEN o.created_at_daraz >= DATE_SUB(NOW(), INTERVAL 30 DAY)

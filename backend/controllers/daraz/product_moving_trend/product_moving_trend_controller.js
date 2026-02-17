@@ -28,7 +28,6 @@ exports.getProductMovingTrend = async (req, res) => {
                 product_name: product.product_name,
                 sku: product.sku,
 
-                // 🔥 ADD THIS
                 product_image: product.product_image || null,
 
                 last_30_days_orders: Number(product.last_30_days_orders),
@@ -53,7 +52,7 @@ exports.getProductMovingTrend = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("TREND ERROR:", error.message);
+        console.error("TREND ERROR:", error);
         res.status(500).json({ error: error.message });
     }
 };
