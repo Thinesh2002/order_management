@@ -2,11 +2,19 @@ const db = require("../../../db/db");
 
 exports.upsertOrder = async (order, accountCode) => {
 
+    /* ===========================
+       SAFE DATE FORMAT FUNCTION
+    ============================ */
     const formatDate = (dateStr) => {
         if (!dateStr) return null;
         const d = new Date(dateStr);
+        if (isNaN(d)) return null;
         return d.toISOString().slice(0, 19).replace("T", " ");
     };
+
+    /* ===========================
+       UPSERT QUERY
+    ============================ */
 
     const query = `
         INSERT INTO orders (
@@ -56,13 +64,16 @@ exports.upsertOrder = async (order, accountCode) => {
             shipping_fee_discount_seller = VALUES(shipping_fee_discount_seller),
             buyer_note = VALUES(buyer_note),
             items_count = VALUES(items_count),
-            created_at_daraz = VALUES(created_at_daraz),
             updated_at_daraz = VALUES(updated_at_daraz),
             address_billing = VALUES(address_billing),
             address_shipping = VALUES(address_shipping),
             extra_attributes = VALUES(extra_attributes),
             raw_json = VALUES(raw_json)
     `;
+
+    /* ===========================
+       EXECUTE QUERY
+    ============================ */
 
     await db.query(query, [
         order.order_id,
