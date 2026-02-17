@@ -28,6 +28,9 @@ exports.getProductMovingTrend = async (req, res) => {
                 product_name: product.product_name,
                 sku: product.sku,
 
+                // 🔥 ADD THIS
+                product_image: product.product_image || null,
+
                 last_30_days_orders: Number(product.last_30_days_orders),
                 last_90_days_orders: Number(product.last_90_days_orders),
 
