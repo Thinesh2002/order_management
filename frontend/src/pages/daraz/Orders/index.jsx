@@ -202,8 +202,8 @@ export default function OrdersPage() {
       const kw = search.toLowerCase();
       data = data.filter(o => 
         String(o.order_id).includes(kw) || 
-        String(o.customer_first_name).toLowerCase().includes(kw) ||
-        o.products?.some(p => p.title.toLowerCase().includes(kw))
+        String(o.customer_first_name || '').toLowerCase().includes(kw) ||
+        o.products?.some(p => p.product_name?.toLowerCase().includes(kw))
       );
     }
 
@@ -215,8 +215,13 @@ export default function OrdersPage() {
 
     if (dateRange !== "all") {
       data = data.filter(o => {
-        const orderDate = new Date(o.created_at);
-        const diffDays = (now - orderDate) / (1000 * 60 * 60 * 24);
+        // BACKEND FIELD NAME FIX: created_at_daraz
+        const orderDateStr = o.created_at_daraz || o.created_at;
+        if (!orderDateStr) return true;
+        
+        const orderDate = new Date(orderDateStr);
+        const diffMs = now - orderDate;
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
 
         switch (dateRange) {
           case "today": return orderDate >= todayStart;
@@ -231,9 +236,11 @@ export default function OrdersPage() {
           }
           case "custom":
             if (startDate && endDate) {
-                const finalEnd = new Date(endDate);
-                finalEnd.setHours(23, 59, 59, 999);
-                return orderDate >= startDate && orderDate <= finalEnd;
+                const s = new Date(startDate);
+                s.setHours(0, 0, 0, 0);
+                const e = new Date(endDate);
+                e.setHours(23, 59, 59, 999);
+                return orderDate >= s && orderDate <= e;
             }
             return true;
           default: return true;
@@ -337,7 +344,6 @@ export default function OrdersPage() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
                   <th className="p-6 text-[10px] font-black uppercase text-slate-400 tracking-widest">Order Info</th>
-                  {/* PUTHU PRODUCT COLUMN */}
                   <th className="p-6 text-[10px] font-black uppercase text-slate-400 tracking-widest">Items</th>
                   <th className="p-6 text-[10px] font-black uppercase text-slate-400 tracking-widest">Customer & Location</th>
                   <th className="p-6 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Status</th>
@@ -362,7 +368,7 @@ export default function OrdersPage() {
                       </div>
                     </td>
 
-                    {/* Product Details - Backend Response structure path used here */}
+                    {/* Product Details */}
                     <td className="p-6 align-top">
                       <div className="space-y-3 max-w-[350px]">
                         {o.products && o.products.length > 0 ? (
@@ -378,7 +384,7 @@ export default function OrdersPage() {
                               </div>
                               <div className="min-w-0">
                                 <p className="text-[11px] font-bold text-slate-700 line-clamp-1 leading-tight">
-                                  {prod.title}
+                                  {prod.product_name || prod.title}
                                 </p>
                                 <div className="flex items-center gap-2 mt-1">
                                   <span className="text-[9px] font-black text-slate-400 uppercase">SKU: {prod.sku?.split('-')[0]}</span>
@@ -402,10 +408,10 @@ export default function OrdersPage() {
                     <td className="p-6 align-top">
                       <div className="font-bold text-slate-700">{o.address_shipping?.first_name || o.customer_first_name || 'Guest'}</div>
                       <div className="text-[11px] text-slate-400 font-semibold mt-1 flex items-center gap-1.5">
-                        <CalendarDays size={12} className="text-slate-300" /> {new Date(o.created_at).toLocaleDateString()}
+                        <CalendarDays size={12} className="text-slate-300" /> {new Date(o.created_at_daraz || o.created_at).toLocaleDateString()}
                       </div>
                       <div className="text-[10px] font-black text-slate-400 uppercase mt-2 flex items-center gap-1">
-                        <Layers size={10} /> {o.address_shipping?.city}, {o.address_shipping?.address3}
+                        <Layers size={10} /> {o.address_shipping?.city || 'N/A'}, {o.address_shipping?.address3 || ''}
                       </div>
                     </td>
 
@@ -424,15 +430,15 @@ export default function OrdersPage() {
                     {/* Amount */}
                     <td className="p-6 text-right align-top">
                       <div className="font-black text-blue-900 text-base italic tracking-tighter">
-                        Rs {parseFloat(o.price).toLocaleString()}
+                        Rs {parseFloat(o.price || 0).toLocaleString()}
                       </div>
-                      {parseFloat(o.voucher) > 0 && (
+                      {parseFloat(o.voucher || 0) > 0 && (
                         <div className="text-[10px] font-black text-rose-500 mt-1 uppercase">
                           Disc: -{o.voucher}
                         </div>
                       )}
                       <div className="text-[10px] font-bold text-slate-400 mt-1">
-                         Fee: Rs {o.shipping_fee}
+                         Fee: Rs {o.shipping_fee || 0}
                       </div>
                     </td>
                   </tr>
