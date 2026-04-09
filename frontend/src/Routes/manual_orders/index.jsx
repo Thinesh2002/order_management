@@ -7,7 +7,7 @@ import Order_Dashboard from "../../pages/manual_orders/index"
 const Manual_Order_Route = (
   <>
     <Route
-      path="/manual-create-orders"
+      path="/create-manual-orders"
       element={
         <ProtectedRoute>
           <Layout>

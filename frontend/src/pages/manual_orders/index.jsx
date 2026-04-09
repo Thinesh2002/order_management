@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Copy, MessageSquare, Pencil, Trash2, XCircle } from "lucide-react";
+import { Copy, MessageSquare, Pencil, Trash2, XCircle, Search, Plus } from "lucide-react";
 import API, { SKU_IMAGE_API_BASE_URL } from "../../config/api";
 
 const OrderDashboard = () => {
   const [orders, setOrders] = useState([]);
   const [selectedImg, setSelectedImg] = useState(null);
+  const [search, setSearch] = useState(""); // ✅ added
   const navigate = useNavigate();
 
   const fetchOrders = useCallback(async () => {
@@ -74,7 +75,6 @@ const OrderDashboard = () => {
     );
   };
 
-  // ✅ UPDATED STATUS FUNCTION (FOR order_status)
   const getStatusConfig = (status) => {
     const s = status?.toLowerCase();
 
@@ -98,10 +98,43 @@ const OrderDashboard = () => {
     }
   };
 
+  // ✅ FILTERED ORDERS (search)
+  const filteredOrders = orders.filter((o) =>
+    o.order_id?.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
     <div className="">
       <div className="">
-        
+
+        {/* ✅ TOP ACTION BAR */}
+        <div className="flex items-center justify-between mb-3 px-4">
+          
+          {/* SEARCH */}
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Search Order ID..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="border border-gray-300 px-3 py-1.5 text-sm rounded-md focus:outline-none"
+            />
+            <button className="bg-black text-white px-3 py-1.5 rounded-md text-sm flex items-center gap-1">
+              <Search size={14} />
+              Search
+            </button>
+          </div>
+
+          {/* ADD BUTTON */}
+          <button
+            onClick={() => navigate("/create-manual-orders")}
+            className="bg-black text-white px-4 py-1.5 rounded-md text-sm flex items-center gap-1"
+          >
+            <Plus size={14} />
+            Create Manual Order
+          </button>
+        </div>
+
         {/* HEADER */}
         <div className="grid grid-cols-12 px-4 py-2 text-sm font-medium text-gray-500 border-b border-gray-200 mb-2">
           <div className="col-span-7">Order Details</div>
@@ -112,24 +145,21 @@ const OrderDashboard = () => {
 
         {/* ORDERS */}
         <div className="space-y-3">
-          {orders.map((o) => {
+          {filteredOrders.map((o) => {
             const images = parseImages(o.sku_images);
             const skuItems = parseSkuQty(o.sku_qty);
 
-            // ✅ USE order_status HERE
             const statusConfig = getStatusConfig(o.order_status);
 
             return (
               <div key={o.order_id} className="relative bg-white border border-gray-200 rounded-sm p-4 hover:border-gray-300 transition-colors">
                 
-                {/* STATUS */}
                 <div className={`absolute top-0 right-0 px-3 py-0.5 text-[10px] font-bold uppercase rounded-bl-sm ${statusConfig.style}`}>
                   {statusConfig.label}
                 </div>
 
                 <div className="grid grid-cols-12 items-start">
                   
-                  {/* ORDER DETAILS */}
                   <div className="col-span-7 pr-4">
                     <div className="flex items-center gap-3 mb-1">
                       <span 
@@ -152,7 +182,6 @@ const OrderDashboard = () => {
                       })}
                     </div>
 
-                    {/* TITLE */}
                     <div 
                       onClick={() => navigate(`/orders/view/${o.order_id}`)}
                       className="text-[13px] text-gray-700 font-medium mb-3 cursor-pointer hover:text-blue-600"
@@ -160,7 +189,6 @@ const OrderDashboard = () => {
                       {renderProductTitle(o.items)}
                     </div>
 
-                    {/* IMAGES */}
                     <div className="inline-flex gap-3 p-2 border border-gray-200 rounded-md bg-gray-50 min-w-[350px]">
                       {images.map((imgObj, i) => (
                         <img
@@ -184,7 +212,6 @@ const OrderDashboard = () => {
                     </div>
                   </div>
 
-                  {/* CUSTOMER */}
                   <div className="col-span-3 text-sm pt-1 border-l border-gray-50 pl-4">
                     <div className="text-gray-800 font-medium truncate">
                       {o.customer_name || "Guest Customer"}
@@ -197,7 +224,6 @@ const OrderDashboard = () => {
                     </div>
                   </div>
 
-                  {/* TOTAL */}
                   <div className="col-span-1 pt-1 text-right">
                     <div className="text-[10px] text-gray-400 uppercase font-bold mb-1">Total</div>
                     <div className="font-mono font-bold text-sm text-gray-900">
@@ -205,7 +231,6 @@ const OrderDashboard = () => {
                     </div>
                   </div>
 
-                  {/* ACTIONS */}
                   <div className="col-span-1 pt-8 flex justify-end gap-3 text-gray-400">
                     <MessageSquare size={16} className="cursor-pointer hover:text-blue-500" />
                     <Pencil 
@@ -223,7 +248,6 @@ const OrderDashboard = () => {
         </div>
       </div>
 
-      {/* IMAGE PREVIEW */}
       {selectedImg && (
         <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 cursor-pointer" onClick={() => setSelectedImg(null)}>
           <img src={selectedImg} className="max-w-full max-h-full rounded shadow-2xl shadow-blue-500/10" alt="Preview" />

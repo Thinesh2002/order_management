@@ -92,13 +92,13 @@ function AddManualOrder() {
   const inputClass = "w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none text-sm transition-all";
 
   return (
-    <div className="min-h-screen bg-gray-50 py-10 px-4">
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-5xl mx-auto bg-white border border-gray-200 shadow-sm rounded-lg overflow-hidden">
+    <div className=" ">
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-5xl mx-auto    rounded-lg overflow-hidden">
         
         {/* Modal Header */}
-        <div className="flex justify-between items-center px-6 py-4 border-b">
+        <div className="flex justify-between items-center px-6 py-4 border-b border-[#2020203a]">
           <h1 className="text-lg font-bold text-gray-800">Create Manual Order</h1>
-          <button className="text-gray-400 hover:text-black">✕</button>
+         
         </div>
 
         <div className="p-8">
@@ -199,7 +199,7 @@ function AddManualOrder() {
           {/* Items Section */}
           <div className="mt-10">
             <h3 className="text-blue-500 text-sm font-semibold mb-3">Order line item's</h3>
-            <div className="border-t pt-4 space-y-4">
+            <div className="border-t border-[#2020203a] pt-4 space-y-4">
               <div className="grid grid-cols-12 gap-4 text-xs font-bold text-gray-500 uppercase">
                 <div className="col-span-3 ml-12">SKU *</div>
                 <div className="col-span-5">Description *</div>
@@ -226,7 +226,7 @@ function AddManualOrder() {
           </div>
 
           {/* Bottom Summary Section */}
-          <div className="mt-8 flex justify-end border-t pt-6">
+          <div className="mt-8 flex justify-end border-t  border-[#2020203a] pt-6">
             <div className="w-80 space-y-3">
               <div className="flex justify-between items-center text-sm">
                 <span className="font-semibold text-gray-600">Lineitem Total <span className="text-red-500">*</span></span>

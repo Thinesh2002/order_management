@@ -1,22 +1,21 @@
 import { NavLink } from "react-router-dom";
 import {
-  LayoutDashboard,
+  Palette,
   Package,
   PlusSquare,
-  List,
-  ClipboardList,
-  Zap,
-  PenTool,
-  Wallet,
+  Tags,
   ShoppingBag,
+  GitBranch,
+  ClipboardList,
+  BarChart3,
+  Warehouse,
   FileText,
-  Users,
   X
 } from "lucide-react";
 
 export default function Sidebar({ onClose }) {
   return (
-    <aside className="w-72 h-full bg-[#020617] border-r border-[#1E293B] flex flex-col">
+    <aside className="w-72 h-full bg-[#ececec] border-r border-[#3a3a3a3d] flex flex-col">
 
       {/* MOBILE CLOSE */}
       <div className="lg:hidden flex justify-end p-4">
@@ -28,19 +27,21 @@ export default function Sidebar({ onClose }) {
         </button>
       </div>
 
-      {/* LOGO / TITLE */}
-      <div className="px-3 py-3 ">
 
-      </div>
 
-      {/* MENU */}
-      <nav className="flex-1 overflow-y-auto   space-y-1">
+      <nav className="flex-1 overflow-y-auto  space-y-1">
+
+
         <MenuTitle title="Orders" />
-        <MenuItem to="/daraz-orders" icon={Zap} label="Daraz Orders" onClick={onClose} />
-         <MenuItem to="/product-moving-trend" icon={Zap} label="Daraz Product Trend" onClick={onClose} />
+         <MenuItem to="/manual-orders" icon={Package} label="Manual Orders" onClick={onClose} />
+        <MenuItem to="/daraz-orders" icon={Package} label="Daraz Orders" onClick={onClose} />
+
+
+        <MenuTitle title="Trend Analysis" />
+        <MenuItem to="/product-moving-trend" icon={BarChart3} label="Daraz Product Trend" onClick={onClose} />
+
 
       </nav>
-
 
     </aside>
   );
@@ -50,7 +51,7 @@ export default function Sidebar({ onClose }) {
 
 function MenuTitle({ title }) {
   return (
-    <p className="px-2   text-[11px] uppercase tracking-wider text-slate-500">
+    <p className="px-3 pt-4 pb-0 text-[11px] uppercase tracking-wider text-[#050505fd]  border-t border-[#2020201f] pb-1">
       {title}
     </p>
   );
@@ -63,16 +64,15 @@ function MenuItem({ to, icon: Icon, label, onClick }) {
       onClick={onClick}
       className={({ isActive }) =>
         `
-        flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-all
-        ${
-          isActive
-            ? "bg-[#111827] text-sky-400 border-l-4 border-sky-400"
-            : "text-slate-400 hover:bg-[#0F172A] hover:text-white"
+        flex items-center gap-2 px-2 py-1.5 pl-6  text-[12px] transition-all 
+        ${isActive
+          ? "bg-[#d8d8d894] text-[#2b2b2b] border-l-3 border-[#222222]"
+          : "text-slate-400 hover:bg-[#d1d1d18a] hover:text-[#2b2b2b]"
         }
         `
       }
     >
-      <Icon size={18} />
+      <Icon size={14} className="shrink-0" />
       <span>{label}</span>
     </NavLink>
   );
