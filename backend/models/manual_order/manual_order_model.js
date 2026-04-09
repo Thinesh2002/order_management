@@ -165,60 +165,96 @@ const Order = {
   },
 
   // ================= GET ALL ORDERS =================
-  getAllOrders: async () => {
+getAllOrders: async () => {
+  try {
 
-    try {
+    const [rows] = await db.execute(`
+      SELECT 
+        mo.*,
 
-      const [rows] = await db.execute(`
-  SELECT 
-    mo.*,
+        MAX(c.customer_name) AS customer_name,
 
-    MAX(c.customer_name) AS customer_name,
+        -- SKU + QTY STRING
+        IFNULL(
+          GROUP_CONCAT(
+            CONCAT(
+              IFNULL(moi.sku, 'NO-SKU'),
+              ' x',
+              IFNULL(moi.quantity, 0)
+            )
+            SEPARATOR ', '
+          ),
+          'No Items'
+        ) AS sku_qty,
 
-    IFNULL(
-      GROUP_CONCAT(
-        DISTINCT 
-        CASE 
-          WHEN moi.sku IS NOT NULL 
-          THEN CONCAT(moi.sku, ' x', moi.quantity)
-        END
-        SEPARATOR ', '
-      ),
-      'No SKU Data'
-    ) AS sku_qty,
+        -- SKU + IMAGE STRING (KEEP THIS - WORKING)
+        GROUP_CONCAT(
+          CONCAT(
+            IFNULL(moi.sku, 'NO-SKU'),
+            '||',
+            IFNULL((
+              SELECT pi.main_image
+              FROM product_management.product_images pi
+              WHERE pi.sku COLLATE utf8mb4_general_ci 
+                    = moi.sku COLLATE utf8mb4_general_ci
+              LIMIT 1
+            ), '')
+          )
+          SEPARATOR ','
+        ) AS sku_images,
 
-    MAX(
-      (
-        SELECT pi.main_image 
-        FROM product_management.product_images pi
-        WHERE pi.sku COLLATE utf8mb4_general_ci 
-              = moi.sku COLLATE utf8mb4_general_ci
-        LIMIT 1
-      )
-    ) AS preview_image
+        -- ✅ NEW: ITEMS JSON (WITH IMAGE + TITLE)
+        IFNULL(
+          CONCAT(
+            '[',
+            GROUP_CONCAT(
+              IF(
+                moi.sku IS NOT NULL,
+                CONCAT(
+                  '{',
+                  '"sku":"', IFNULL(moi.sku, 'NO-SKU'), '",',
+                  '"product_name":"', REPLACE(IFNULL(moi.product_name, 'NO NAME'), '"', '\\"'), '",',
+                  '"qty":"', IFNULL(moi.quantity, 0), '",',
+                  '"image":"',
+                    IFNULL((
+                      SELECT pi.main_image
+                      FROM product_management.product_images pi
+                      WHERE pi.sku COLLATE utf8mb4_general_ci 
+                            = moi.sku COLLATE utf8mb4_general_ci
+                      LIMIT 1
+                    ), ''),
+                  '"',
+                  '}'
+                ),
+                NULL
+              )
+              SEPARATOR ','
+            ),
+            ']'
+          ),
+          '[]'
+        ) AS items
 
-  FROM manual_orders mo
+      FROM manual_orders mo
 
-  LEFT JOIN customers c 
-    ON mo.customer_code COLLATE utf8mb4_general_ci 
-       = c.id COLLATE utf8mb4_general_ci
+      LEFT JOIN customers c 
+        ON mo.customer_code = c.id
 
-  LEFT JOIN manual_order_items moi 
-    ON mo.order_id = moi.order_id
+      LEFT JOIN manual_order_items moi 
+        ON mo.order_id = moi.order_id
 
-  GROUP BY mo.order_id
+      GROUP BY mo.order_id
 
-  ORDER BY mo.created_at DESC
-`);
+      ORDER BY mo.created_at DESC
+    `);
 
-      return rows;
+    return rows;
 
-    } catch (error) {
-      console.error("Fetch Orders Error:", error);
-      throw error;
-    }
-
-  },
+  } catch (error) {
+    console.error("Fetch Orders Error:", error);
+    throw error;
+  }
+},
 
   // ================= GET ORDER ITEMS =================
   getOrderItems: async (order_id) => {
