@@ -5,7 +5,7 @@ import Layout from "./pages/compnents/Layout";
 import Login from "./pages/login";
 import Dashboard from "./pages/dasboard";
 import User from "./pages/user/user_dashboard";
-
+import Manual_Order_Route from "./Routes/manual_orders";
 import ProtectedRoute from "./config/ProtectedRoute";
 import DarazRoute from "./Routes/daraz_route/index";
 
@@ -42,6 +42,7 @@ export default function App() {
 
 
   {DarazRoute}
+  {Manual_Order_Route}
 
       {/* FALLBACK */}
       <Route path="*" element={<Navigate to="/daraz-orders" replace />} />
