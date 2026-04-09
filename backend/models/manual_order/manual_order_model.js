@@ -172,44 +172,43 @@ const Order = {
 
     try {
 
-const [rows] = await db.execute(`
-  SELECT 
-    mo.*, 
-    c.customer_name,
+      const [rows] = await db.execute(`
+      SELECT 
+        mo.*, 
+        c.customer_name,
 
-    -- SKU + QTY
-    IFNULL(
-      GROUP_CONCAT(
-        DISTINCT 
-        CASE 
-          WHEN moi.sku IS NOT NULL 
-          THEN CONCAT(moi.sku, ' x', moi.quantity)
-        END
-        SEPARATOR ', '
-      ),
-      'No SKU Data'
-    ) AS sku_qty,
+        IFNULL(
+          GROUP_CONCAT(
+            DISTINCT 
+            CASE 
+              WHEN moi.sku IS NOT NULL 
+              THEN CONCAT(moi.sku, ' x', moi.quantity)
+            END
+            SEPARATOR ', '
+          ),
+          'No SKU Data'
+        ) AS sku_qty,
 
-    -- ✅ ADD IMAGE
-    (
-      SELECT pi.main_image 
-      FROM product_management.product_images pi
-      WHERE pi.sku = moi.sku
-      LIMIT 1
-    ) AS preview_image
+        (
+          SELECT pi.main_image 
+          FROM product_management.product_images pi
+          WHERE pi.sku = moi.sku
+          LIMIT 1
+        ) AS preview_image
 
-  FROM manual_orders mo
+      FROM manual_orders mo
 
-  LEFT JOIN customers c 
-    ON mo.customer_code = c.id
+      LEFT JOIN customers c 
+        ON mo.customer_code COLLATE utf8mb4_general_ci 
+           = c.id COLLATE utf8mb4_general_ci
 
-  LEFT JOIN manual_order_items moi 
-    ON mo.order_id = moi.order_id
+      LEFT JOIN manual_order_items moi 
+        ON mo.order_id = moi.order_id
 
-  GROUP BY mo.order_id
+      GROUP BY mo.order_id
 
-  ORDER BY mo.created_at DESC
-`);
+      ORDER BY mo.created_at DESC
+    `);
 
       return rows;
 
@@ -221,11 +220,11 @@ const [rows] = await db.execute(`
   },
 
   // ================= GET ORDER ITEMS =================
-getOrderItems: async (order_id) => {
+  getOrderItems: async (order_id) => {
 
-  try {
+    try {
 
-    const [rows] = await db.execute(`
+      const [rows] = await db.execute(`
       SELECT 
         moi.id,
         moi.order_id,
@@ -250,16 +249,16 @@ getOrderItems: async (order_id) => {
       ORDER BY moi.id DESC
     `, [order_id]);
 
-    return rows.map(row => ({
-      ...row,
-      preview_image: row.preview_image || null
-    }));
+      return rows.map(row => ({
+        ...row,
+        preview_image: row.preview_image || null
+      }));
 
-  } catch (error) {
-    console.error("Fetch Order Items Error:", error);
-    throw error;
-  }
-},
+    } catch (error) {
+      console.error("Fetch Order Items Error:", error);
+      throw error;
+    }
+  },
 
   // ================= NEXT ORDER ID =================
   getNextOrderId: async () => {
