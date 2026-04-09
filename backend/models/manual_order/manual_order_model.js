@@ -23,7 +23,6 @@ const Order = {
 
       await conn.beginTransaction();
 
-      // ===== INSERT ORDER =====
       const orderSql = `
         INSERT INTO manual_orders
         (order_id, customer_code, payment_method, order_status, order_date, note,
@@ -52,7 +51,6 @@ const Order = {
 
       await conn.execute(orderSql, orderValues);
 
-      // ===== INSERT ITEMS =====
       const itemSql = `
         INSERT INTO manual_order_items
         (order_id, sku, product_name, description, quantity, unit_price, item_total)
@@ -80,7 +78,6 @@ const Order = {
 
       await conn.commit();
 
-      // ===== COURIER (AFTER COMMIT) =====
       if (order.send_to_courier) {
         try {
 
@@ -173,42 +170,43 @@ const Order = {
     try {
 
       const [rows] = await db.execute(`
-      SELECT 
-        mo.*, 
-        c.customer_name,
+        SELECT 
+          mo.*, 
+          c.customer_name,
 
-        IFNULL(
-          GROUP_CONCAT(
-            DISTINCT 
-            CASE 
-              WHEN moi.sku IS NOT NULL 
-              THEN CONCAT(moi.sku, ' x', moi.quantity)
-            END
-            SEPARATOR ', '
-          ),
-          'No SKU Data'
-        ) AS sku_qty,
+          IFNULL(
+            GROUP_CONCAT(
+              DISTINCT 
+              CASE 
+                WHEN moi.sku IS NOT NULL 
+                THEN CONCAT(moi.sku, ' x', moi.quantity)
+              END
+              SEPARATOR ', '
+            ),
+            'No SKU Data'
+          ) AS sku_qty,
 
-        (
-          SELECT pi.main_image 
-          FROM product_management.product_images pi
-          WHERE pi.sku = moi.sku
-          LIMIT 1
-        ) AS preview_image
+          (
+            SELECT pi.main_image 
+            FROM product_management.product_images pi
+            WHERE pi.sku COLLATE utf8mb4_general_ci 
+                  = moi.sku COLLATE utf8mb4_general_ci
+            LIMIT 1
+          ) AS preview_image
 
-      FROM manual_orders mo
+        FROM manual_orders mo
 
-      LEFT JOIN customers c 
-        ON mo.customer_code COLLATE utf8mb4_general_ci 
-           = c.id COLLATE utf8mb4_general_ci
+        LEFT JOIN customers c 
+          ON mo.customer_code COLLATE utf8mb4_general_ci 
+             = c.id COLLATE utf8mb4_general_ci
 
-      LEFT JOIN manual_order_items moi 
-        ON mo.order_id = moi.order_id
+        LEFT JOIN manual_order_items moi 
+          ON mo.order_id = moi.order_id
 
-      GROUP BY mo.order_id
+        GROUP BY mo.order_id
 
-      ORDER BY mo.created_at DESC
-    `);
+        ORDER BY mo.created_at DESC
+      `);
 
       return rows;
 
@@ -225,29 +223,29 @@ const Order = {
     try {
 
       const [rows] = await db.execute(`
-      SELECT 
-        moi.id,
-        moi.order_id,
-        moi.sku,
-        moi.product_name,
-        moi.description,
-        moi.quantity,
-        moi.unit_price,
-        moi.item_total,
-        moi.created_at,
+        SELECT 
+          moi.id,
+          moi.order_id,
+          moi.sku,
+          moi.product_name,
+          moi.description,
+          moi.quantity,
+          moi.unit_price,
+          moi.item_total,
+          moi.created_at,
 
-        -- IMAGE FROM product_images
-        pi.main_image AS preview_image
+          pi.main_image AS preview_image
 
-      FROM manual_order_items moi
+        FROM manual_order_items moi
 
-      LEFT JOIN product_management.product_images pi 
-        ON moi.sku = pi.sku
+        LEFT JOIN product_management.product_images pi 
+          ON moi.sku COLLATE utf8mb4_general_ci 
+             = pi.sku COLLATE utf8mb4_general_ci
 
-      WHERE moi.order_id = ?
+        WHERE moi.order_id = ?
 
-      ORDER BY moi.id DESC
-    `, [order_id]);
+        ORDER BY moi.id DESC
+      `, [order_id]);
 
       return rows.map(row => ({
         ...row,
