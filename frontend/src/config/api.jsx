@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-export const SKU_IMAGE_API_BASE_URL ="https://backend.teckvora.com/";
+export const SKU_IMAGE_API_BASE_URL ="https://backend.teckvora.com";
 
 const API = axios.create({
   baseURL: 'https://orders.api.teckvora.com/api' 
