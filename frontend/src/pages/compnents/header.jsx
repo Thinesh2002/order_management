@@ -40,28 +40,21 @@ export default function Header({ onMenuClick }) {
   }, []);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-[#b6b6b6] bg-[#343538]  backdrop-blur-xl">
-      <div className="flex h-18 items-center justify-between px-2 sm:px-2 lg:px-8">
-        <div className="flex items-center gap-3 sm:gap-4">
-          <button
-            onClick={onMenuClick}
-            aria-label="Open menu"
-            className="inline-flex h-11 w-11 items-center justify-center - text-[#e0e0e0] transition-all duration-200 hover:border-[#b6b6b6] hover:bg-slate-800 hover:text-white"
-          >
-            <MenuIcon size={28} />
-          </button>
+    <header className="sticky top-0 z-50 border-b border-[#b6b6b6] bg-[#0b4da5]  backdrop-blur-xl">
+      <div className="flex h-16 items-center justify-between px-1 sm:px-1 ">
+ 
 
           <button
             onClick={() => navigate("/dashboard")}
             className="flex flex-col items-start rounded-2xl px-1 text-left transition-opacity hover:opacity-90"
           >
            
-            <h1 className="text-base font-semibold tracking-tight text-[#d6d6d6] text-[23px]">
-              Order Management
+            <h1 className="text-base font-semibold tracking-tight text-[#d6d6d6] text-[22px]">
+              ORDER MANAGEMENT
             </h1>
        
           </button>
-        </div>
+      
 
         <div className="flex items-center gap-2 sm:gap-3">
 

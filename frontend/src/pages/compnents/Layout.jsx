@@ -22,7 +22,7 @@ export default function Layout({ children }) {
       <Header onMenuClick={() => setSidebarOpen((prev) => !prev)} />
 
       <div className="flex min-h-[calc(100vh-4rem)]">
-        <div className="hidden w-72 shrink-0 lg:block">
+        <div className="hidden w-60 shrink-0 lg:block">
           <Sidebar onClose={() => setSidebarOpen(false)} />
         </div>
 
@@ -41,7 +41,7 @@ export default function Layout({ children }) {
           <Sidebar onClose={() => setSidebarOpen(false)} />
         </div>
 
-        <main className="min-w-0 flex-1 bg-[#f3f3f3] px-4 py-4 sm:px-6 lg:px-8">
+        <main className="min-w-0 flex-1 bg-[#f8fafc]  px-4 py-4 sm:px-6 lg:px-8">
           <div className="">
             {children}
           </div>

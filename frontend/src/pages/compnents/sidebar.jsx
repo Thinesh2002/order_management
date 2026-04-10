@@ -15,7 +15,7 @@ import {
 
 export default function Sidebar({ onClose }) {
   return (
-    <aside className="w-72 h-full bg-[#ececec] border-r border-[#3a3a3a3d] flex flex-col">
+    <aside className="w-60 h-full bg-[#f8fafc]  border-r border-[#3a3a3a3d] flex flex-col">
 
       {/* MOBILE CLOSE */}
       <div className="lg:hidden flex justify-end p-4">
@@ -51,7 +51,7 @@ export default function Sidebar({ onClose }) {
 
 function MenuTitle({ title }) {
   return (
-    <p className="px-3 pt-4 pb-0 text-[11px] uppercase tracking-wider text-[#050505fd]  border-t border-[#2020201f] pb-1">
+    <p className="px-3 pt-4 pb-0 text-[11px] uppercase tracking-wider text-[#005499]  border-t border-[#2020201f] pb-1">
       {title}
     </p>
   );
@@ -66,8 +66,8 @@ function MenuItem({ to, icon: Icon, label, onClick }) {
         `
         flex items-center gap-2 px-2 py-1.5 pl-6  text-[12px] transition-all 
         ${isActive
-          ? "bg-[#d8d8d894] text-[#2b2b2b] border-l-3 border-[#222222]"
-          : "text-slate-400 hover:bg-[#d1d1d18a] hover:text-[#2b2b2b]"
+          ? "bg-[#d7f1fd] text-[#005499] border-l-3 border-[#0059ff]"
+          : "text-slate-400 hover:bg-[#b4e7fc94] hover:text-[#005499]"
         }
         `
       }
