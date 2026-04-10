@@ -165,14 +165,20 @@ const Order = {
   },
 
   // ================= GET ALL ORDERS =================
-getAllOrders: async () => {
-  try {
+  getAllOrders: async () => {
+    try {
 
-    const [rows] = await db.execute(`
+      const [rows] = await db.execute(`
       SELECT 
         mo.*,
 
-        MAX(c.customer_name) AS customer_name,
+MAX(c.customer_name) AS customer_name,
+MAX(c.phone_1) AS phone_1,
+MAX(c.phone_2) AS phone_2,
+MAX(c.address_line1) AS address_line1,
+MAX(c.address_line2) AS address_line2,
+MAX(c.city) AS city,
+MAX(c.province) AS province,
 
         -- SKU + QTY STRING
         IFNULL(
@@ -203,7 +209,7 @@ getAllOrders: async () => {
           SEPARATOR ','
         ) AS sku_images,
 
-        -- ✅ NEW: ITEMS JSON (WITH IMAGE + TITLE)
+      
         IFNULL(
           CONCAT(
             '[',
@@ -248,13 +254,13 @@ getAllOrders: async () => {
       ORDER BY mo.created_at DESC
     `);
 
-    return rows;
+      return rows;
 
-  } catch (error) {
-    console.error("Fetch Orders Error:", error);
-    throw error;
-  }
-},
+    } catch (error) {
+      console.error("Fetch Orders Error:", error);
+      throw error;
+    }
+  },
 
   // ================= GET ORDER ITEMS =================
   getOrderItems: async (order_id) => {
