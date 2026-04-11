@@ -325,16 +325,15 @@ MAX(c.province) AS province,
   },
 
 // ================= UPDATE ORDER =================
+// ================= UPDATE ORDER =================
 updateOrder: async (order_id, order, items) => {
 
   const conn = await db.getConnection();
 
- 
   const formatMySQLDateTime = (date) => {
     if (!date) return null;
 
     const d = new Date(date);
-
     const pad = (n) => (n < 10 ? "0" + n : n);
 
     return (
@@ -354,56 +353,57 @@ updateOrder: async (order_id, order, items) => {
 
   try {
 
+    console.log("UPDATE ORDER API HIT");
+    console.log("ORDER ID:", order_id);
+    console.log("ORDER DATA:", order);
+    console.log("ITEMS:", items);
+
     if (!order_id) {
       throw new Error("Order ID is required");
     }
 
-    if (!order || !Array.isArray(items) || items.length === 0) {
+    if (!order || !Array.isArray(items)) {
       throw new Error("Invalid order data");
     }
 
-  
-if (
-  order.order_status === "Delivered" &&
-  order.waybill_id !== undefined &&   
-  !order.waybill_id
-) {
-  throw new Error("Waybill ID cannot be empty");
-}
+    // ✅ Optional waybill validation (only if explicitly sent)
+    if (
+      order.order_status === "Delivered" &&
+      order.waybill_id !== undefined &&
+      !order.waybill_id
+    ) {
+      throw new Error("Waybill ID cannot be empty");
+    }
 
     await conn.beginTransaction();
 
     const updateOrderSql = `
       UPDATE manual_orders SET
-        customer_code=?,
-        payment_method=?,
-        order_status=?,
-        order_date=?,
-        note=?,
-        item_total=?,
-        discount=?,
-        subtotal=?,
-        shipping_cost_actual=?,
-        shipping_cost_fixed=?,
-        paid_amount=?,
-        order_total=?,
-        tracking_number=?,
+        customer_code = ?,
+        payment_method = ?,
+        order_status = COALESCE(?, order_status),
+        order_date = ?,
+        note = ?,
+        item_total = ?,
+        discount = ?,
+        subtotal = ?,
+        shipping_cost_actual = ?,
+        shipping_cost_fixed = ?,
+        paid_amount = ?,
+        order_total = ?,
+        tracking_number = ?,
         waybill_id = COALESCE(?, waybill_id),
         courier_status = COALESCE(?, courier_status)
-      WHERE order_id=?
+      WHERE order_id = ?
     `;
 
-
     const formattedDate = formatMySQLDateTime(order.order_date || new Date());
-
-  
-    console.log("FINAL DATE:", formattedDate);
 
     const orderValues = [
       order.customer_code || null,
       order.payment_method || "COD",
-      order.order_status || "Pending",
-      formattedDate, 
+      order.order_status !== undefined ? order.order_status : null,
+      formattedDate,
       order.note || null,
       order.item_total || 0,
       order.discount || 0,
@@ -413,15 +413,16 @@ if (
       order.paid_amount || 0,
       order.order_total || 0,
       order.tracking_number || null,
-      order.waybill_id ? order.waybill_id : null, 
-      order.courier_status ? order.courier_status : null, 
+      order.waybill_id || null,
+      order.courier_status || null,
       order_id
     ];
 
     await conn.execute(updateOrderSql, orderValues);
 
+    // ✅ Delete old items
     await conn.execute(
-      `DELETE FROM manual_order_items WHERE order_id=?`,
+      `DELETE FROM manual_order_items WHERE order_id = ?`,
       [order_id]
     );
 
@@ -431,10 +432,12 @@ if (
       VALUES (?,?,?,?,?,?,?)
     `;
 
+    // ✅ Insert items (skip invalid instead of crash)
     for (const item of items) {
 
       if (!item.product_name || !item.quantity) {
-        throw new Error("Invalid item data");
+        console.warn("Skipping invalid item:", item);
+        continue;
       }
 
       const itemValues = [
@@ -442,9 +445,9 @@ if (
         item.sku || null,
         item.product_name,
         item.description || null,
-        item.quantity || 0,
-        item.unit_price || 0,
-        item.item_total || 0
+        Number(item.quantity) || 0,
+        Number(item.unit_price) || 0,
+        Number(item.item_total) || 0
       ];
 
       await conn.execute(itemSql, itemValues);
