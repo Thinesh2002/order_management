@@ -50,7 +50,7 @@ export default function Header({ onMenuClick }) {
           >
            
             <h1 className="text-base font-semibold tracking-tight text-[#d6d6d6] text-[22px]">
-              ORDER MANAGEMENT
+              BRIGHTHUB ORDER MANAGEMENT
             </h1>
        
           </button>
