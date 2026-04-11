@@ -131,7 +131,7 @@ const InvoiceTemplate = React.forwardRef(({ order, items }, ref) => {
 
       <div className="mt-auto pt-10 text-center">
         <div className=" py-5  ">
-          <p className="text-xl font-[500] text-slate-900 uppercase tracking-tight ">Thanks for choosing Teckvora!</p>
+          <p className="text-xl font-[500] text-slate-900 uppercase tracking-tight ">Thanks for choosing BrightHub!</p>
           <p className="text-[10px] text-slate-400 font-[400] mt-2 tracking-widest uppercase">Computer Generated Invoice | No Signature Required</p>
         </div>
       </div>

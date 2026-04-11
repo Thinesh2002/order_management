@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Copy, MessageSquare, Pencil, Trash2, XCircle, Search, Plus, ChevronDown } from "lucide-react";
+import { Copy, MessageSquare, Pencil, Trash2, XCircle, Search, Plus, ChevronDown, ExternalLink, Truck } from "lucide-react";
 import API, { SKU_IMAGE_API_BASE_URL } from "../../config/api";
 
 const OrderDashboard = () => {
@@ -104,29 +104,24 @@ const OrderDashboard = () => {
     switch (dateFilter) {
       case "today":
         return orderDate.toDateString() === now.toDateString();
-
       case "yesterday": {
         const yesterday = new Date();
         yesterday.setDate(now.getDate() - 1);
         return orderDate.toDateString() === yesterday.toDateString();
       }
-
       case "thisMonth":
         return orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear();
-
       case "lastMonth": {
         const lastMonth = new Date();
         lastMonth.setMonth(now.getMonth() - 1);
         return orderDate.getMonth() === lastMonth.getMonth() && orderDate.getFullYear() === lastMonth.getFullYear();
       }
-
       case "custom":
         if (!fromDate || !toDate) return true;
         const start = new Date(fromDate);
         const end = new Date(toDate);
         end.setHours(23, 59, 59);
         return orderDate >= start && orderDate <= end;
-
       default: {
         const days = Number(dateFilter);
         const past = new Date();
@@ -146,7 +141,8 @@ const OrderDashboard = () => {
       o.province?.toLowerCase().includes(s) ||
       o.address_line1?.toLowerCase().includes(s) ||
       o.address_line2?.toLowerCase().includes(s) ||
-      o.sku_qty?.toLowerCase().includes(s);
+      o.sku_qty?.toLowerCase().includes(s) ||
+      (o.waybill_id && o.waybill_id !== "BrightHUB" && o.waybill_id.toLowerCase().includes(s));
 
     const currentStatusLabel = getStatusConfig(o.order_status).label;
     const statusMatch = statusFilter.length === 0 || statusFilter.includes(currentStatusLabel);
@@ -163,7 +159,7 @@ const OrderDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen pb-10">
+    <div className="min-h-screen pb-10 font-sans text-slate-900">
       <div className="max-w-[1600px] mx-auto pt-6">
 
         {/* STATS CARDS */}
@@ -171,13 +167,13 @@ const OrderDashboard = () => {
           <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all group">
             <div className="text-slate-400 text-[11px] font-bold uppercase tracking-widest">Total Orders</div>
             <div className="flex items-baseline gap-2 mt-1">
-              <div className="font-black text-2xl text-slate-900">{filteredOrders.length}</div>
+              <div className="font-black text-2xl">{filteredOrders.length}</div>
             </div>
           </div>
 
           <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all">
             <div className="text-slate-400 text-[11px] font-bold uppercase tracking-widest">Total Revenue</div>
-            <div className="font-black text-2xl text-slate-900 mt-1 flex items-baseline gap-1">
+            <div className="font-black text-2xl mt-1 flex items-baseline gap-1">
               <span className="text-sm font-bold">Rs</span>
               {filteredOrders.reduce((s, o) => s + Number(o.order_total || 0), 0).toLocaleString()}
               <span>.00</span>
@@ -203,16 +199,15 @@ const OrderDashboard = () => {
           <div className="relative flex items-center max-w-md w-full">
             <input
               type="text"
-              placeholder="Search (Phone / Address / SKU / City...)"
+              placeholder="Search (Phone / Waybill / SKU / City...)"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl transition-all focus:ring-4 focus:ring-blue-50 focus:border-blue-400 focus:outline-none shadow-sm"
+              className="w-full pl-10 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl transition-all focus:ring-4 focus:ring-blue-50 focus:border-blue-400 focus:outline-none shadow-sm text-slate-900"
             />
             <Search className="absolute left-3 text-slate-400" size={16} />
           </div>
 
           <div className="flex items-center gap-3">
-            {/* STATUS FILTER */}
             <div className="relative hover:cursor-pointer">
               <button
                 onClick={() => setIsStatusOpen(!isStatusOpen)}
@@ -236,7 +231,6 @@ const OrderDashboard = () => {
               )}
             </div>
 
-            {/* DATE FILTER */}
             <div className="relative">
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -261,14 +255,14 @@ const OrderDashboard = () => {
 
             {dateFilter === "custom" && (
               <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-right-2 cursor-pointer">
-                <input type="date" onChange={(e) => setFromDate(e.target.value)} className="bg-transparent text-xs p-1 outline-none" />
+                <input type="date" onChange={(e) => setFromDate(e.target.value)} className="bg-transparent text-xs p-1 outline-none text-slate-900" />
                 <span className="text-slate-300 text-[10px] font-bold uppercase tracking-tighter">to</span>
-                <input type="date" onChange={(e) => setToDate(e.target.value)} className="bg-transparent text-xs p-1 outline-none" />
+                <input type="date" onChange={(e) => setToDate(e.target.value)} className="bg-transparent text-xs p-1 outline-none text-slate-900" />
               </div>
             )}
 
             <button
-              onClick={() => navigate("/create-manual-orders")}
+              onClick={() => window.open("/create-manual-orders", "_blank")}
               className="bg-[#0f172a] text-white px-5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-slate-800 transition-all shadow-sm cursor-pointer"
             >
               <Plus size={14} strokeWidth={3} /> Create Order
@@ -298,10 +292,10 @@ const OrderDashboard = () => {
 
                 <div className="grid grid-cols-12 items-start">
                   <div className="col-span-7 pr-6">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span onClick={() => navigate(`/manual-orders/view/${o.order_id}`)} className="text-blue-600 font-[500] cursor-pointer hover:underline text-sm tracking-wide">
-                        #{o.order_id}
-                      </span>
+                    <div className="flex items-center gap-3 mb-2 flex-wrap">
+                      <a href={`/manual-orders/view/${o.order_id}`} target="_blank" rel="noreferrer" className="text-blue-600 font-[700] cursor-pointer hover:underline text-sm tracking-wide flex items-center gap-1">
+                        #{o.order_id} <ExternalLink size={12} />
+                      </a>
                       {skuItems.map((item, i) => {
                         const [sku, qty] = item.split(" x");
                         return (
@@ -310,14 +304,31 @@ const OrderDashboard = () => {
                           </div>
                         );
                       })}
+                      
+                      {/* WAYBILL SECTION - Hidden if "BrightHUB" */}
+                      {o.waybill_id && o.waybill_id !== "BrightHUB" && (
+                        <a 
+                          href={`/trans-ex/track-orders?waybill_id=${o.waybill_id}`}
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="flex items-center gap-1.5 bg-blue-50 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded-md hover:bg-blue-100 transition-colors border border-blue-200"
+                        >
+                          <Truck size={12} /> {o.waybill_id}
+                        </a>
+                      )}
                     </div>
-                    <div onClick={() => navigate(`/manual-orders/view/${o.order_id}`)} className="text-[13px] text-slate-700 font-[500] mb-4 cursor-pointer group-hover:text-blue-600 transition-colors hover:underline">
+                    <a href={`/manual-orders/view/${o.order_id}`} target="_blank" rel="noreferrer" className="block text-[13px] text-slate-700 font-[500] mb-4 cursor-pointer group-hover:text-blue-600 transition-colors hover:underline">
                       {renderProductTitle(o.items)}
-                    </div>
+                    </a>
                     <div className="flex gap-2 p-2 border border-slate-50 rounded-xl bg-slate-50/50 w-fit">
-                      {images.map((imgObj, i) => (
-                        <img key={i} src={imgObj.image ? `${SKU_IMAGE_API_BASE_URL}/images/productimage/${imgObj.sku}/${imgObj.image}` : "/images/no-image.png"} className="w-12 h-12 object-cover bg-white border border-slate-100 rounded-lg hover:scale-[2] transition-transform shadow-sm" alt="product" />
-                      ))}
+                      {images.map((imgObj, i) => {
+                        const imgUrl = imgObj.image ? `${SKU_IMAGE_API_BASE_URL}/images/productimage/${imgObj.sku}/${imgObj.image}` : "/images/no-image.png";
+                        return (
+                          <a key={i} href={imgUrl} target="_blank" rel="noreferrer">
+                            <img src={imgUrl} className="w-12 h-12 object-cover bg-white border border-slate-100 rounded-lg hover:scale-105 transition-transform shadow-sm" alt="product" />
+                          </a>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -331,19 +342,22 @@ const OrderDashboard = () => {
                   </div>
 
                   <div className="col-span-1 pt-1 text-right">
-                    <div className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-1">Total</div>
-                    <div className="font-mono font-black text-sm text-slate-900">
+                    <div className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-1">Payment</div>
+                    <div className="font-mono font-black text-sm text-slate-900 mb-2">
                       Rs {Number(o.order_total).toFixed(2)}
+                    </div>
+                    {/* SHIPPING COSTS BREAKDOWN */}
+                    <div className="space-y-1">
+                       <div className="text-[9px] text-slate-400 font-bold uppercase">Buyer Paid: <span className="text-slate-600">Rs {Number(o.shipping_cost_fixed || 0).toFixed(2)}</span></div>
+                       <div className="text-[9px] text-slate-400 font-bold uppercase">Actual Cost: <span className="text-red-500">Rs {Number(o.shipping_cost_actual || 0).toFixed(2)}</span></div>
                     </div>
                   </div>
 
                   <div className="col-span-1 pt-8 flex justify-end gap-4 text-slate-300 group-hover:text-slate-500 transition-colors">
                     <MessageSquare size={16} className="cursor-pointer hover:text-blue-500" />
-                    <Pencil
-                      size={16}
-                      className="cursor-pointer hover:text-yellow-600"
-                      onClick={() => navigate(`/manual-orders/edit/${o.order_id}`)}
-                    />
+                    <button onClick={() => window.open(`/manual-orders/edit/${o.order_id}`, "_blank")}>
+                       <Pencil size={16} className="cursor-pointer hover:text-yellow-600" />
+                    </button>
                     <Trash2 size={16} className="cursor-pointer hover:text-red-500" />
                   </div>
                 </div>
