@@ -108,19 +108,22 @@ function EditManualOrder() {
           shipping_cost_fixed: Number(order.shipping_cost_fixed) || 0,
           order_total: Number(order.order_total) || 0
         },
-        items: items.map(i => ({
-          sku: i.sku || null,
-          product_name: i.product_name || "",
-          quantity: Number(i.quantity) || 1,
-          unit_price: Number(i.unit_price) || 0,
-          item_total: (Number(i.quantity) || 1) * (Number(i.unit_price) || 0)
-        }))
+items: items
+  .filter(i => i.product_name && Number(i.quantity) > 0) // ✅ FIX
+  .map(i => ({
+    sku: i.sku || null,
+    product_name: i.product_name,
+    quantity: Number(i.quantity),
+    unit_price: Number(i.unit_price) || 0,
+    item_total: Number(i.quantity) * (Number(i.unit_price) || 0)
+  }))
       });
       alert("Order updated successfully");
       navigate(-1);
     } catch (err) {
-      alert("Error updating order");
-    }
+  console.log("ERROR:", err.response?.data); 
+  alert(err?.response?.data?.message || "Error updating order");
+}
   };
 
   const labelClass = "text-xs font-bold text-slate-500 uppercase mb-1 block";
