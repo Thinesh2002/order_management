@@ -322,6 +322,117 @@ MAX(c.province) AS province,
     }
 
     return newOrderId;
+  },
+
+// ================= UPDATE ORDER =================
+  updateOrder: async (order_id, order, items) => {
+
+    const conn = await db.getConnection();
+
+    try {
+
+      if (!order_id) {
+        throw new Error("Order ID is required");
+      }
+
+      if (!order || !Array.isArray(items) || items.length === 0) {
+        throw new Error("Invalid order data");
+      }
+
+      await conn.beginTransaction();
+
+      const updateOrderSql = `
+        UPDATE manual_orders SET
+          customer_code=?,
+          payment_method=?,
+          order_status=?,
+          order_date=?,
+          note=?,
+          item_total=?,
+          discount=?,
+          subtotal=?,
+          shipping_cost_actual=?,
+          shipping_cost_fixed=?,
+          paid_amount=?,
+          order_total=?,
+          tracking_number=?,
+          waybill_id = COALESCE(?, waybill_id),
+          courier_status = COALESCE(?, courier_status)
+        WHERE order_id=?
+      `;
+
+      const orderValues = [
+        order.customer_code || null,
+        order.payment_method || "COD",
+        order.order_status || "Pending",
+        order.order_date || new Date(),
+        order.note || null,
+        order.item_total || 0,
+        order.discount || 0,
+        order.subtotal || 0,
+        order.shipping_cost_actual || 0,
+        order.shipping_cost_fixed || 450,
+        order.paid_amount || 0,
+        order.order_total || 0,
+        order.tracking_number || null,
+        order.waybill_id || null,
+        order.courier_status || null,
+        order_id
+      ];
+
+      await conn.execute(updateOrderSql, orderValues);
+
+      await conn.execute(
+        `DELETE FROM manual_order_items WHERE order_id=?`,
+        [order_id]
+      );
+
+      const itemSql = `
+        INSERT INTO manual_order_items
+        (order_id, sku, product_name, description, quantity, unit_price, item_total)
+        VALUES (?,?,?,?,?,?,?)
+      `;
+
+      for (const item of items) {
+
+        if (!item.product_name || !item.quantity) {
+          throw new Error("Invalid item data");
+        }
+
+        const itemValues = [
+          order_id,
+          item.sku || null,
+          item.product_name,
+          item.description || null,
+          item.quantity || 0,
+          item.unit_price || 0,
+          item.item_total || 0
+        ];
+
+        await conn.execute(itemSql, itemValues);
+      }
+
+      await conn.commit();
+
+      return {
+        success: true,
+        message: "Order updated successfully"
+      };
+
+    } catch (error) {
+
+      await conn.rollback();
+
+      console.error("Order Update Error:", error);
+
+      return {
+        success: false,
+        message: error.message || "Order update failed"
+      };
+
+    } finally {
+      conn.release();
+    }
   }
 
 };

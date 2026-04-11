@@ -13,14 +13,18 @@ const OrderDashboard = () => {
   const [toDate, setToDate] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  const [statusFilter, setStatusFilter] = useState([]); 
+  const [statusFilter, setStatusFilter] = useState([]);
   const [isStatusOpen, setIsStatusOpen] = useState(false);
 
   const navigate = useNavigate();
 
   const options = [
+    { label: "Today", value: "today" },
+    { label: "Yesterday", value: "yesterday" },
     { label: "Last 7 Days", value: "7" },
     { label: "Last 30 Days", value: "30" },
+    { label: "This Month", value: "thisMonth" },
+    { label: "Last Month", value: "lastMonth" },
     { label: "Last 90 Days", value: "90" },
     { label: "Custom Range", value: "custom" },
   ];
@@ -95,14 +99,41 @@ const OrderDashboard = () => {
 
   const filterByDate = (o) => {
     const orderDate = new Date(o.created_at);
-    if (dateFilter === "custom") {
-      if (!fromDate || !toDate) return true;
-      return orderDate >= new Date(fromDate) && orderDate <= new Date(toDate);
+    const now = new Date();
+
+    switch (dateFilter) {
+      case "today":
+        return orderDate.toDateString() === now.toDateString();
+
+      case "yesterday": {
+        const yesterday = new Date();
+        yesterday.setDate(now.getDate() - 1);
+        return orderDate.toDateString() === yesterday.toDateString();
+      }
+
+      case "thisMonth":
+        return orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear();
+
+      case "lastMonth": {
+        const lastMonth = new Date();
+        lastMonth.setMonth(now.getMonth() - 1);
+        return orderDate.getMonth() === lastMonth.getMonth() && orderDate.getFullYear() === lastMonth.getFullYear();
+      }
+
+      case "custom":
+        if (!fromDate || !toDate) return true;
+        const start = new Date(fromDate);
+        const end = new Date(toDate);
+        end.setHours(23, 59, 59);
+        return orderDate >= start && orderDate <= end;
+
+      default: {
+        const days = Number(dateFilter);
+        const past = new Date();
+        past.setDate(past.getDate() - days);
+        return orderDate >= past;
+      }
     }
-    const days = Number(dateFilter);
-    const past = new Date();
-    past.setDate(past.getDate() - days);
-    return orderDate >= past;
   };
 
   const filteredOrders = orders.filter((o) => {
@@ -134,14 +165,13 @@ const OrderDashboard = () => {
   return (
     <div className="min-h-screen pb-10">
       <div className="max-w-[1600px] mx-auto pt-6">
-        
+
         {/* STATS CARDS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 px-4 mb-8">
           <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all group">
             <div className="text-slate-400 text-[11px] font-bold uppercase tracking-widest">Total Orders</div>
             <div className="flex items-baseline gap-2 mt-1">
               <div className="font-black text-2xl text-slate-900">{filteredOrders.length}</div>
-           
             </div>
           </div>
 
@@ -150,7 +180,7 @@ const OrderDashboard = () => {
             <div className="font-black text-2xl text-slate-900 mt-1 flex items-baseline gap-1">
               <span className="text-sm font-bold">Rs</span>
               {filteredOrders.reduce((s, o) => s + Number(o.order_total || 0), 0).toLocaleString()}
-               <span>.00</span>
+              <span>.00</span>
             </div>
           </div>
 
@@ -159,8 +189,8 @@ const OrderDashboard = () => {
             <div className="font-black text-2xl text-green-600 mt-1">
               {filteredOrders.filter((o) => o.order_status?.toLowerCase() === "delivered").length}
               <div className="w-full bg-slate-100 h-1 rounded-full mt-3 overflow-hidden">
-                <div 
-                  className="bg-green-500 h-full rounded-full transition-all duration-700" 
+                <div
+                  className="bg-green-500 h-full rounded-full transition-all duration-700"
                   style={{ width: `${(filteredOrders.filter(o => o.order_status?.toLowerCase() === "delivered").length / (filteredOrders.length || 1)) * 100}%` }}
                 />
               </div>
@@ -181,9 +211,9 @@ const OrderDashboard = () => {
             <Search className="absolute left-3 text-slate-400" size={16} />
           </div>
 
-          <div className="flex items-center gap-3 ">
+          <div className="flex items-center gap-3">
             {/* STATUS FILTER */}
-            <div className="relative hover:cursor-pointer ">
+            <div className="relative hover:cursor-pointer">
               <button
                 onClick={() => setIsStatusOpen(!isStatusOpen)}
                 className="flex items-center justify-between min-w-[140px] bg-white border border-slate-200 text-slate-700 px-4 py-2 text-sm rounded-xl shadow-sm hover:border-blue-400 transition-all"
@@ -194,7 +224,7 @@ const OrderDashboard = () => {
               {isStatusOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setIsStatusOpen(false)}></div>
-                  <div className="absolute right-0 z-20 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 p-1 animate-in fade-in zoom-in-95">
+                  <div className="absolute right-0 z-20 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 p-1">
                     {statusOptions.map((status) => (
                       <label key={status} className="flex items-center gap-3 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
                         <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" checked={statusFilter.includes(status)} onChange={() => toggleStatus(status)} />
@@ -207,18 +237,18 @@ const OrderDashboard = () => {
             </div>
 
             {/* DATE FILTER */}
-            <div className="relative ">
+            <div className="relative">
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="flex items-center justify-between min-w-[150px]  bg-white border border-slate-200 text-slate-700 px-4 py-2 text-sm rounded-xl shadow-sm hover:border-blue-400 transition-all"
+                className="flex items-center justify-between min-w-[150px] bg-white border border-slate-200 text-slate-700 px-4 py-2 text-sm rounded-xl shadow-sm hover:border-blue-400 transition-all"
               >
-                <span className="text-xs font-semibold cursor-pointer">{options.find(opt => opt.value === dateFilter)?.label}</span>
+                <span className="text-xs font-semibold">{options.find(opt => opt.value === dateFilter)?.label}</span>
                 <ChevronDown className={`w-3 h-3 ml-2 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
               {isDropdownOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setIsDropdownOpen(false)}></div>
-                  <div className="absolute right-0 z-20 mt-2 w-full bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden p-1 animate-in fade-in zoom-in-95">
+                  <div className="absolute right-0 z-20 mt-2 w-full bg-white rounded-xl shadow-xl border border-slate-100 p-1">
                     {options.map((option) => (
                       <button key={option.value} onClick={() => { setDateFilter(option.value); setIsDropdownOpen(false); }} className={`block w-full text-left px-4 py-2 text-xs rounded-lg transition-colors ${dateFilter === option.value ? "bg-blue-50 text-blue-700 font-bold" : "text-slate-600 hover:bg-slate-50"}`}>
                         {option.label}
@@ -262,14 +292,14 @@ const OrderDashboard = () => {
             const statusConfig = getStatusConfig(o.order_status);
             return (
               <div key={o.order_id} className="relative bg-white border border-slate-100 rounded-2xl p-5 hover:shadow-lg hover:border-blue-100 transition-all duration-300 group">
-                <div className={`absolute top-0 right-0 px-4 py-1 text-[11px] font-[500] uppercase  rounded-bl-[7px] shadow-sm ${statusConfig.style}`}>
+                <div className={`absolute top-0 right-0 px-4 py-1 text-[11px] font-[500] uppercase rounded-bl-[7px] shadow-sm ${statusConfig.style}`}>
                   {statusConfig.label}
                 </div>
 
                 <div className="grid grid-cols-12 items-start">
                   <div className="col-span-7 pr-6">
                     <div className="flex items-center gap-3 mb-2">
-                      <span onClick={() => navigate(`/orders/view/${o.order_id}`)} className="text-blue-600 font-[500] cursor-pointer hover:underline text-sm tracking-tight tracking-wide">
+                      <span onClick={() => navigate(`/manual-orders/view/${o.order_id}`)} className="text-blue-600 font-[500] cursor-pointer hover:underline text-sm tracking-wide">
                         #{o.order_id}
                       </span>
                       {skuItems.map((item, i) => {
@@ -281,24 +311,21 @@ const OrderDashboard = () => {
                         );
                       })}
                     </div>
-                    <div onClick={() => navigate(`/orders/view/${o.order_id}`)} className="text-[13px] text-slate-700 font-[500] mb-4 cursor-pointer group-hover:text-blue-600 transition-colors hover:underline">
+                    <div onClick={() => navigate(`/manual-orders/view/${o.order_id}`)} className="text-[13px] text-slate-700 font-[500] mb-4 cursor-pointer group-hover:text-blue-600 transition-colors hover:underline">
                       {renderProductTitle(o.items)}
                     </div>
                     <div className="flex gap-2 p-2 border border-slate-50 rounded-xl bg-slate-50/50 w-fit">
                       {images.map((imgObj, i) => (
-                        <img key={i} src={imgObj.image ? `${SKU_IMAGE_API_BASE_URL}/images/productimage/${imgObj.sku}/${imgObj.image}` : "/images/no-image.png"} className="w-12 h-12 object-cover bg-white border border-slate-100 rounded-lg hover:scale-250 transition-transform shadow-sm" alt="product" />
+                        <img key={i} src={imgObj.image ? `${SKU_IMAGE_API_BASE_URL}/images/productimage/${imgObj.sku}/${imgObj.image}` : "/images/no-image.png"} className="w-12 h-12 object-cover bg-white border border-slate-100 rounded-lg hover:scale-[2] transition-transform shadow-sm" alt="product" />
                       ))}
                     </div>
                   </div>
 
                   <div className="col-span-3 text-[13px] pt-1 border-l border-slate-50 pl-6">
                     <div className="text-slate-900 font-bold mb-1 truncate">{o.customer_name || "Guest Customer"}</div>
-               
                     <div className="text-slate-500 text-[11px] leading-relaxed mt-1">
                       {o.address_line1}<br />
-                          
                       {o.city || "Jaffna"} <br />
-                    
                       <span className="font-medium text-slate-800 tracking-tight">{o.phone_1}</span>
                     </div>
                   </div>
@@ -306,13 +333,17 @@ const OrderDashboard = () => {
                   <div className="col-span-1 pt-1 text-right">
                     <div className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-1">Total</div>
                     <div className="font-mono font-black text-sm text-slate-900">
-                      £{Number(o.order_total).toFixed(2)}
+                      Rs {Number(o.order_total).toFixed(2)}
                     </div>
                   </div>
 
                   <div className="col-span-1 pt-8 flex justify-end gap-4 text-slate-300 group-hover:text-slate-500 transition-colors">
                     <MessageSquare size={16} className="cursor-pointer hover:text-blue-500" />
-                    <Pencil size={16} className="cursor-pointer hover:text-yellow-600" />
+                    <Pencil
+                      size={16}
+                      className="cursor-pointer hover:text-yellow-600"
+                      onClick={() => navigate(`/manual-orders/edit/${o.order_id}`)}
+                    />
                     <Trash2 size={16} className="cursor-pointer hover:text-red-500" />
                   </div>
                 </div>

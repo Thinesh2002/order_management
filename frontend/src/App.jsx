@@ -8,7 +8,7 @@ import User from "./pages/user/user_dashboard";
 import Manual_Order_Route from "./Routes/manual_orders";
 import ProtectedRoute from "./config/ProtectedRoute";
 import DarazRoute from "./Routes/daraz_route/index";
-
+import Trans_route from "./Routes/trans_ex_order_route/index";
 export default function App() {
   return (
     <Routes>
@@ -43,9 +43,9 @@ export default function App() {
 
   {DarazRoute}
   {Manual_Order_Route}
-
+  {Trans_route}
       {/* FALLBACK */}
-      <Route path="*" element={<Navigate to="/daraz-orders" replace />} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
 }
