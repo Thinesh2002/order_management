@@ -35,7 +35,7 @@ const Order = {
         order.customer_code || null,
         order.payment_method || "COD",
         order.order_status || "Pending",
-        formatMySQLDateTime(order.order_date || new Date()), 
+        formatMySQLDateTime(order.order_date || new Date()),
         order.note || null,
         order.item_total || 0,
         order.discount || 0,
@@ -45,8 +45,8 @@ const Order = {
         order.paid_amount || 0,
         order.order_total || 0,
         order.tracking_number || null,
-        order.waybill_id || null,
-        order.courier_status || null,
+        order.waybill_id ? order.waybill_id : null,
+        order.courier_status ? order.courier_status : null,
         order_id
       ];
 
