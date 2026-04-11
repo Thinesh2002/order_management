@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Copy, MessageSquare, Pencil, Trash2, XCircle, Search, Plus, ChevronDown, ExternalLink, Truck } from "lucide-react";
+import { Copy, MessageSquare, Pencil, Trash2, XCircle, Search, Plus, ChevronDown, ExternalLink, Truck, CircleDollarSign } from "lucide-react";
 import API, { SKU_IMAGE_API_BASE_URL } from "../../config/api";
 
 const OrderDashboard = () => {
@@ -158,12 +158,17 @@ const OrderDashboard = () => {
     }
   };
 
+  // ✅ CALCULATIONS FOR STATS
+  const totalRevenue = filteredOrders.reduce((s, o) => s + Number(o.order_total || 0), 0);
+  const totalActualShipping = filteredOrders.reduce((s, o) => s + Number(o.shipping_cost_actual || 0), 0);
+  const netSales = totalRevenue - totalActualShipping;
+
   return (
     <div className="min-h-screen pb-10 font-sans text-slate-900">
       <div className="max-w-[1600px] mx-auto pt-6">
 
         {/* STATS CARDS */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 px-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 px-4 mb-8">
           <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all group">
             <div className="text-slate-400 text-[11px] font-bold uppercase tracking-widest">Total Orders</div>
             <div className="flex items-baseline gap-2 mt-1">
@@ -175,9 +180,22 @@ const OrderDashboard = () => {
             <div className="text-slate-400 text-[11px] font-bold uppercase tracking-widest">Total Revenue</div>
             <div className="font-black text-2xl mt-1 flex items-baseline gap-1">
               <span className="text-sm font-bold">Rs</span>
-              {filteredOrders.reduce((s, o) => s + Number(o.order_total || 0), 0).toLocaleString()}
+              {totalRevenue.toLocaleString()}
               <span>.00</span>
             </div>
+          </div>
+
+      
+          <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all group ">
+            <div className="text-slate-400 text-[11px] font-bold uppercase tracking-widest">
+                 Net Sales
+            </div>
+            <div className="font-black text-2xl mt-1 flex items-baseline gap-1 text-green-600">
+              <span className="text-sm font-bold">Rs</span>
+              {netSales.toLocaleString()}
+              <span>.00</span>
+            </div>
+            <div className="text-[10px] text-slate-400 mt-1 font-medium">After Actual Shipping Deducted</div>
           </div>
 
           <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all group">
@@ -284,6 +302,10 @@ const OrderDashboard = () => {
             const images = parseImages(o.sku_images);
             const skuItems = parseSkuQty(o.sku_qty);
             const statusConfig = getStatusConfig(o.order_status);
+            
+            // ✅ CALCULATE NET PROCEED FOR INDIVIDUAL TABLE ROW
+            const orderNetProceed = Number(o.order_total || 0) - Number(o.shipping_cost_actual || 0);
+
             return (
               <div key={o.order_id} className="relative bg-white border border-slate-100 rounded-2xl p-5 hover:shadow-lg hover:border-blue-100 transition-all duration-300 group">
                 <div className={`absolute top-0 right-0 px-4 py-1 text-[11px] font-[500] uppercase rounded-bl-[7px] shadow-sm ${statusConfig.style}`}>
@@ -342,14 +364,20 @@ const OrderDashboard = () => {
                   </div>
 
                   <div className="col-span-1 pt-1 text-right">
-                    <div className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-1">Payment</div>
+                    <div className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-1">Payments</div>
                     <div className="font-mono font-black text-sm text-slate-900 mb-2">
                       Rs {Number(o.order_total).toFixed(2)}
                     </div>
-                    {/* SHIPPING COSTS BREAKDOWN */}
-                    <div className="space-y-1">
+                    
+                    {/* SHIPPING COSTS & NET PROCEED BREAKDOWN */}
+                    <div className="space-y-1.5">
                        <div className="text-[9px] text-slate-400 font-bold uppercase">Buyer Paid: <span className="text-slate-600">Rs {Number(o.shipping_cost_fixed || 0).toFixed(2)}</span></div>
                        <div className="text-[9px] text-slate-400 font-bold uppercase">Actual Cost: <span className="text-red-500">Rs {Number(o.shipping_cost_actual || 0).toFixed(2)}</span></div>
+                       
+                       {/* ✅ NEW NET PROCEED LINE IN TABLE */}
+                       <div className="pt-1 mt-1 border-t border-slate-100 text-[10px] text-blue-600 font-black uppercase">
+                          Net: Rs {orderNetProceed.toFixed(2)}
+                       </div>
                     </div>
                   </div>
 

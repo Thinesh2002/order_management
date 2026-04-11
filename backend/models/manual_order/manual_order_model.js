@@ -329,7 +329,7 @@ updateOrder: async (order_id, order, items) => {
 
   const conn = await db.getConnection();
 
-  // ✅ ADD THIS FUNCTION
+ 
   const formatMySQLDateTime = (date) => {
     if (!date) return null;
 
@@ -362,10 +362,14 @@ updateOrder: async (order_id, order, items) => {
       throw new Error("Invalid order data");
     }
 
-    // ✅ ADD VALIDATION
-    if (order.order_status === "Delivered" && !order.waybill_id) {
-      throw new Error("Waybill ID is required when status is Delivered");
-    }
+  
+if (
+  order.order_status === "Delivered" &&
+  order.waybill_id !== undefined &&   
+  !order.waybill_id
+) {
+  throw new Error("Waybill ID cannot be empty");
+}
 
     await conn.beginTransaction();
 
@@ -389,17 +393,17 @@ updateOrder: async (order_id, order, items) => {
       WHERE order_id=?
     `;
 
-    // ✅ FIX DATE HERE
+
     const formattedDate = formatMySQLDateTime(order.order_date || new Date());
 
-    // ✅ DEBUG LOG (IMPORTANT)
+  
     console.log("FINAL DATE:", formattedDate);
 
     const orderValues = [
       order.customer_code || null,
       order.payment_method || "COD",
       order.order_status || "Pending",
-      formattedDate, // ✅ FIXED
+      formattedDate, 
       order.note || null,
       order.item_total || 0,
       order.discount || 0,
@@ -409,8 +413,8 @@ updateOrder: async (order_id, order, items) => {
       order.paid_amount || 0,
       order.order_total || 0,
       order.tracking_number || null,
-      order.waybill_id ? order.waybill_id : null, // ✅ FIX EMPTY STRING
-      order.courier_status ? order.courier_status : null, // ✅ FIX EMPTY STRING
+      order.waybill_id ? order.waybill_id : null, 
+      order.courier_status ? order.courier_status : null, 
       order_id
     ];
 
