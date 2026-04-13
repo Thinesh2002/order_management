@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import API from '../services/api';
+import API from '../../config/api';
 import { getStoredUser, storeAuth, clearAuth } from '../services/auth';
 import { useNavigate } from 'react-router-dom';
 

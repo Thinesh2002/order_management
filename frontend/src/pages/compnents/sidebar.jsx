@@ -1,6 +1,6 @@
 import { NavLink } from "react-router-dom";
 import {
-  Palette,
+  User,
   Package,
   PlusSquare,
   Tags,
@@ -33,13 +33,15 @@ export default function Sidebar({ onClose }) {
 
 
         <MenuTitle title="Orders" />
-         <MenuItem to="/manual-orders" icon={Package} label="Manual Orders" onClick={onClose} />
+         <MenuItem to="/manual-orders" icon={ShoppingBag} label="Manual Orders" onClick={onClose} />
         <MenuItem to="/daraz-orders" icon={Package} label="Daraz Orders" onClick={onClose} />
 
 
         <MenuTitle title="Trend Analysis" />
         <MenuItem to="/product-moving-trend" icon={BarChart3} label="Daraz Product Trend" onClick={onClose} />
 
+        <MenuTitle title="Users" />
+        <MenuItem to="/user-dashboard" icon={User} label="User Dashboard" onClick={onClose} />
 
       </nav>
 
