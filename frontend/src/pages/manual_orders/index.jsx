@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Copy, MessageSquare, Pencil, Trash2, XCircle, Search, Plus, ChevronDown, ExternalLink, Truck, CircleDollarSign } from "lucide-react";
+import { Copy, MessageSquare, Pencil, Trash2, XCircle, Search, Plus, ChevronDown, ExternalLink, Truck, CircleDollarSign, Ban, RotateCcw, Package } from "lucide-react";
 import API, { SKU_IMAGE_API_BASE_URL } from "../../config/api";
 
 const OrderDashboard = () => {
@@ -29,7 +29,7 @@ const OrderDashboard = () => {
     { label: "Custom Range", value: "custom" },
   ];
 
-  const statusOptions = ["Pending", "In Progress", "Delivered", "Cancelled"];
+  const statusOptions = ["Pending", "In Progress", "Delivered", "Cancelled", "Returned"];
 
   const fetchOrders = useCallback(async () => {
     const res = await API.get("/orders/all");
@@ -91,8 +91,8 @@ const OrderDashboard = () => {
       case "processing":
       case "in progress": return { label: "In Progress", style: "bg-yellow-500 text-white" };
       case "delivered": return { label: "Delivered", style: "bg-green-600 text-white" };
-      case "cancelled":
-      case "returned": return { label: "Cancelled", style: "bg-gray-700 text-white" };
+      case "cancelled": return { label: "Cancelled", style: "bg-gray-700 text-white" };
+      case "returned": return { label: "Returned", style: "bg-orange-600 text-white" };
       default: return { label: status || "Pending", style: "bg-gray-600 text-white" };
     }
   };
@@ -161,48 +161,76 @@ const OrderDashboard = () => {
   // ✅ CALCULATIONS FOR STATS
   const totalRevenue = filteredOrders.reduce((s, o) => s + Number(o.order_total || 0), 0);
   const totalActualShipping = filteredOrders.reduce((s, o) => s + Number(o.shipping_cost_actual || 0), 0);
-  const netSales = totalRevenue - totalActualShipping;
+  
+  // Filtered lists for specific cards
+  const cancelledOrders = filteredOrders.filter(o => o.order_status?.toLowerCase() === "cancelled");
+  const returnedOrders = filteredOrders.filter(o => o.order_status?.toLowerCase() === "returned");
+  
+  // Calculate specific totals
+  const totalCancelledAmount = cancelledOrders.reduce((s, o) => s + Number(o.order_total || 0), 0);
+  const totalReturnedAmount = returnedOrders.reduce((s, o) => s + Number(o.order_total || 0), 0);
+
+  // Net Sales: Excluding Cancelled and Returned
+  const activeOrdersForNet = filteredOrders.filter(o => 
+    o.order_status?.toLowerCase() !== "cancelled" && 
+    o.order_status?.toLowerCase() !== "returned"
+  );
+  
+  const netSales = activeOrdersForNet.reduce((s, o) => s + (Number(o.order_total || 0) - Number(o.shipping_cost_actual || 0)), 0);
 
   return (
     <div className="min-h-screen pb-10 font-sans text-slate-900">
       <div className="max-w-[1600px] mx-auto pt-6">
 
         {/* STATS CARDS */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 px-4 mb-8">
-          <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all group">
-            <div className="text-slate-400 text-[11px] font-bold uppercase tracking-widest">Total Orders</div>
-            <div className="flex items-baseline gap-2 mt-1">
-              <div className="font-black text-2xl">{filteredOrders.length}</div>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-4 px-4 mb-8">
+          <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all">
+            <div className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Total Orders</div>
+            <div className="font-black text-xl mt-1">{filteredOrders.length}</div>
           </div>
 
-          <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all">
-            <div className="text-slate-400 text-[11px] font-bold uppercase tracking-widest">Total Revenue</div>
-            <div className="font-black text-2xl mt-1 flex items-baseline gap-1">
-              <span className="text-sm font-bold">Rs</span>
+          <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all">
+            <div className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Total Revenue</div>
+            <div className="font-black text-xl mt-1 flex items-baseline gap-1">
+              <span className="text-xs font-bold">Rs</span>
               {totalRevenue.toLocaleString()}
-              <span>.00</span>
             </div>
           </div>
 
-      
-          <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all group ">
-            <div className="text-slate-400 text-[11px] font-bold uppercase tracking-widest">
-                 Net Sales
+          <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all">
+            <div className="text-blue-500 text-[10px] font-bold uppercase tracking-widest">Net Sales</div>
+            <div className="font-black text-xl mt-1 text-green-600">
+              <span className="text-xs font-bold">Rs</span> {netSales.toLocaleString()}
             </div>
-            <div className="font-black text-2xl mt-1 flex items-baseline gap-1 text-green-600">
-              <span className="text-sm font-bold">Rs</span>
-              {netSales.toLocaleString()}
-              <span>.00</span>
-            </div>
-            <div className="text-[10px] text-slate-400 mt-1 font-medium">After Actual Shipping Deducted</div>
+            <div className="text-[9px] text-slate-400 mt-1 font-medium italic">Excl. Cancel/Return</div>
           </div>
 
-          <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all group">
-            <div className="text-slate-400 text-[11px] font-bold uppercase tracking-widest">Success Rate</div>
-            <div className="font-black text-2xl text-green-600 mt-1">
-              {filteredOrders.filter((o) => o.order_status?.toLowerCase() === "delivered").length}
-              <div className="w-full bg-slate-100 h-1 rounded-full mt-3 overflow-hidden">
+          <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all">
+            <div className="text-red-500 text-[10px] font-bold uppercase tracking-widest">Cancelled Total</div>
+            <div className="font-black text-xl mt-1 text-red-500">
+              <span className="text-xs font-bold">Rs</span> {totalCancelledAmount.toLocaleString()}
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all">
+            <div className="text-orange-500 text-[10px] font-bold uppercase tracking-widest">Returned Total</div>
+            <div className="font-black text-xl mt-1 text-orange-500">
+              <span className="text-xs font-bold">Rs</span> {totalReturnedAmount.toLocaleString()}
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all">
+            <div className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Actual Shipping</div>
+            <div className="font-black text-xl mt-1 text-slate-700">
+              <span className="text-xs font-bold">Rs</span> {totalActualShipping.toLocaleString()}
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all">
+            <div className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Success Rate</div>
+            <div className="font-black text-xl text-green-600 mt-1">
+              {Math.round((filteredOrders.filter(o => o.order_status?.toLowerCase() === "delivered").length / (filteredOrders.length || 1)) * 100)}%
+              <div className="w-full bg-slate-100 h-1 rounded-full mt-2 overflow-hidden">
                 <div
                   className="bg-green-500 h-full rounded-full transition-all duration-700"
                   style={{ width: `${(filteredOrders.filter(o => o.order_status?.toLowerCase() === "delivered").length / (filteredOrders.length || 1)) * 100}%` }}
@@ -303,7 +331,6 @@ const OrderDashboard = () => {
             const skuItems = parseSkuQty(o.sku_qty);
             const statusConfig = getStatusConfig(o.order_status);
             
-            // ✅ CALCULATE NET PROCEED FOR INDIVIDUAL TABLE ROW
             const orderNetProceed = Number(o.order_total || 0) - Number(o.shipping_cost_actual || 0);
 
             return (
@@ -327,7 +354,6 @@ const OrderDashboard = () => {
                         );
                       })}
                       
-                      {/* WAYBILL SECTION - Hidden if "BrightHUB" */}
                       {o.waybill_id && o.waybill_id !== "BrightHUB" && (
                         <a 
                           href={`/trans-ex/track-orders?waybill_id=${o.waybill_id}`}
@@ -369,12 +395,10 @@ const OrderDashboard = () => {
                       Rs {Number(o.order_total).toFixed(2)}
                     </div>
                     
-                    {/* SHIPPING COSTS & NET PROCEED BREAKDOWN */}
                     <div className="space-y-1.5">
                        <div className="text-[9px] text-slate-400 font-bold uppercase">Buyer Paid: <span className="text-slate-600">Rs {Number(o.shipping_cost_fixed || 0).toFixed(2)}</span></div>
                        <div className="text-[9px] text-slate-400 font-bold uppercase">Actual Cost: <span className="text-red-500">Rs {Number(o.shipping_cost_actual || 0).toFixed(2)}</span></div>
                        
-                       {/* ✅ NEW NET PROCEED LINE IN TABLE */}
                        <div className="pt-1 mt-1 border-t border-slate-100 text-[10px] text-blue-600 font-black uppercase">
                           Net: Rs {orderNetProceed.toFixed(2)}
                        </div>
