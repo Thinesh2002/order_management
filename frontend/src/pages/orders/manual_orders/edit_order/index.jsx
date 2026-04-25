@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import API from "../../../config/api";
+import API from "../../../../config/api";
 import { motion } from "framer-motion";
 import { User, Package, Calendar, CreditCard, Plus, Trash2, ArrowLeft, Save } from "lucide-react";
 

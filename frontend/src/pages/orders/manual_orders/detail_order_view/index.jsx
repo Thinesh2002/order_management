@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useReactToPrint } from "react-to-print";
-import API, { SKU_IMAGE_API_BASE_URL } from "../../../config/api";
+import API, { SKU_IMAGE_API_BASE_URL } from "../../../../config/api";
 import { ArrowLeft, CreditCard, Mail, Phone, Truck, User, Package, X, CheckCircle, Globe, DollarSign } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import InvoiceTemplate from "../invoice_template/index";

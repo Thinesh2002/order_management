@@ -1,5 +1,5 @@
 import React from "react";
-import { SKU_IMAGE_API_BASE_URL } from "../../../config/api"; // Path check pannikonga
+import { SKU_IMAGE_API_BASE_URL } from "../../../../config/api"; // Path check pannikonga
 
 const InvoiceTemplate = React.forwardRef(({ order, items }, ref) => {
   if (!order) return null;

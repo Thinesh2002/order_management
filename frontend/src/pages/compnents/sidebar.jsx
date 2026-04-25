@@ -33,7 +33,9 @@ export default function Sidebar({ onClose }) {
 
 
         <MenuTitle title="Orders" />
+        <MenuItem to="/all-orders" icon={ShoppingBag} label="Orders Dashboard" onClick={onClose} />
          <MenuItem to="/manual-orders" icon={ShoppingBag} label="Manual Orders" onClick={onClose} />
+         <MenuItem to="/woo-orders" icon={ShoppingBag} label="Woo Orders" onClick={onClose} />
         <MenuItem to="/daraz-orders" icon={Package} label="Daraz Orders" onClick={onClose} />
 
 

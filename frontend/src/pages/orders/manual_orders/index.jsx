@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Copy, MessageSquare, Pencil, Trash2, XCircle, Search, Plus, ChevronDown, ExternalLink, Truck, CircleDollarSign, Ban, RotateCcw, Package } from "lucide-react";
-import API, { SKU_IMAGE_API_BASE_URL } from "../../config/api";
+import API, { SKU_IMAGE_API_BASE_URL } from "../../../config/api";
 
 const OrderDashboard = () => {
   const [orders, setOrders] = useState([]);

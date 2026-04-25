@@ -9,6 +9,9 @@ import Manual_Order_Route from "./Routes/manual_orders";
 import ProtectedRoute from "./config/ProtectedRoute";
 import DarazRoute from "./Routes/daraz_route/index";
 import Trans_route from "./Routes/trans_ex_order_route/index";
+import Woo from "./Routes/woo/index";
+import Orders from "./pages/orders/index";
+
 export default function App() {
   return (
     <Routes>
@@ -37,6 +40,17 @@ export default function App() {
         }
       />
 
+            <Route
+        path="/all-orders"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Orders />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
   
 
 
@@ -44,6 +58,7 @@ export default function App() {
   {DarazRoute}
   {Manual_Order_Route}
   {Trans_route}
+  {Woo}
       {/* FALLBACK */}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

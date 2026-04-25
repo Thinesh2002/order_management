@@ -1,10 +1,10 @@
 import { Route } from "react-router-dom";
 import Layout from "../../pages/compnents/Layout";
 import ProtectedRoute from "../../config/ProtectedRoute";
-import Create_Orders from "../../pages/manual_orders/create_order/index";
-import Order_Dashboard from "../../pages/manual_orders/index"
-import Manual_detail_order_view from "../../pages/manual_orders/detail_order_view/index"
-import Edit_order from "../../pages/manual_orders/edit_order/index"
+import Create_Orders from "../../pages/orders/manual_orders/create_order/index";
+import Order_Dashboard from "../../pages/orders/manual_orders/index"
+import Manual_detail_order_view from "../../pages/orders/manual_orders/detail_order_view/index"
+import Edit_order from "../../pages/orders/manual_orders/edit_order/index"
 
 const Manual_Order_Route = (
   <>
