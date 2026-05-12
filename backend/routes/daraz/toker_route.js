@@ -1,8 +1,14 @@
-const express = require("express"); 
-const router = express.Router(); 
-const { createAccessToken } = require("../../controllers/daraz/daraz_controller"); 
+const express = require("express");
 
-router.get("/token", createAccessToken); 
+const router = express.Router();
 
+const {
+    createAccessToken
+} = require("../../controllers/daraz/auth/darazAuthController");
+
+router.get(
+    "/callback",
+    createAccessToken
+);
 
 module.exports = router;

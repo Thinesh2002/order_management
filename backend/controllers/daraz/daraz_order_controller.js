@@ -1,16 +1,16 @@
 const axios = require("axios");
 const crypto = require("crypto");
+
 const accountModel = require("../../models/daraz/account/daraz_account_model");
 const orderModel = require("../../models/daraz/orders/orders_model");
 const itemModel = require("../../models/daraz/orders/order_items_model");
+
 const db = require("../../db/db");
 
-/* ============================= */
-/* 🔐 SIGNATURE GENERATOR */
-/* ============================= */
-
 const generateSignature = (apiPath, params, appSecret) => {
+
     const sortedKeys = Object.keys(params).sort();
+
     let signString = apiPath;
 
     for (let key of sortedKeys) {
@@ -24,212 +24,441 @@ const generateSignature = (apiPath, params, appSecret) => {
         .toUpperCase();
 };
 
-/* ============================= */
-/* 🛡 SAFE JSON PARSER */
-/* ============================= */
-
 const safeParse = (value) => {
+
     if (!value) return {};
-    if (typeof value === "object") return value;
+
+    if (typeof value === "object") {
+        return value;
+    }
 
     try {
+
         return JSON.parse(value);
+
     } catch (err) {
-        console.log("⚠ Invalid JSON detected:", value);
+
+        console.log("Invalid JSON:", value);
+
         return {};
     }
 };
 
-/* ============================= */
-/* 🔄 SYNC ORDERS (LAST 10 MIN) */
-/* ============================= */
+let isSyncRunning = false;
+let isBackfillRunning = false;
 
-exports.syncOrders = async () => {
+const fetchOrderItems = async (
+    account,
+    orderId
+) => {
+
     try {
-        const accounts = await accountModel.getAllAccounts();
 
-        for (let account of accounts) {
+        const itemsPath = "/order/items/get";
 
-            const apiPath = "/orders/get";
-            const itemsPath = "/order/items/get";
+        const itemParams = {
+            app_key: account.app_key,
+            access_token: account.access_token,
+            timestamp: Date.now().toString(),
+            sign_method: "sha256",
+            order_id: orderId
+        };
 
-            const lastSync = account.last_sync_time
-                ? new Date(account.last_sync_time)
-                : new Date(Date.now() - 10 * 60 * 1000);
+        itemParams.sign = generateSignature(
+            itemsPath,
+            itemParams,
+            account.app_secret
+        );
 
-            const now = new Date();
-
-            let offset = 0;
-            let hasMore = true;
-
-            while (hasMore) {
-
-                const params = {
-                    app_key: account.app_key,
-                    access_token: account.access_token,
-                    timestamp: Date.now().toString(),
-                    sign_method: "sha256",
-                    update_after: lastSync.toISOString(),
-                    update_before: now.toISOString(),
-                    limit: "100",
-                    offset: offset.toString()
-                };
-
-                params.sign = generateSignature(apiPath, params, account.app_secret);
-
-                const response = await axios.get(
-                    `${account.api_base}${apiPath}`,
-                    { params, timeout: 15000 }
-                );
-
-                const orders = response.data?.data?.orders || [];
-
-                if (orders.length === 0) break;
-
-                for (let order of orders) {
-
-                    await orderModel.upsertOrder(order, account.account_code);
-
-                    const itemParams = {
-                        app_key: account.app_key,
-                        access_token: account.access_token,
-                        timestamp: Date.now().toString(),
-                        sign_method: "sha256",
-                        order_id: order.order_id
-                    };
-
-                    itemParams.sign = generateSignature(itemsPath, itemParams, account.app_secret);
-
-                    const itemResponse = await axios.get(
-                        `${account.api_base}${itemsPath}`,
-                        { params: itemParams, timeout: 15000 }
-                    );
-
-                    const items = itemResponse.data?.data || [];
-
-                    await itemModel.replaceOrderItems(order.order_id, items);
-                }
-
-                if (orders.length < 100) {
-                    hasMore = false;
-                } else {
-                    offset += 100;
-                }
+        const itemResponse = await axios.get(
+            `${account.api_base}${itemsPath}`,
+            {
+                params: itemParams,
+                timeout: 20000
             }
+        );
 
-            await accountModel.updateLastSync(account.account_code, now);
-        }
+        return itemResponse.data?.data || [];
 
-        console.log("✅ Order Sync Completed");
+    } catch (error) {
 
-    } catch (err) {
-        console.error("❌ Sync Error:", err.message);
+        console.log(
+            `ITEM FETCH FAILED ${orderId}`,
+            error.message
+        );
+
+        return [];
     }
 };
 
-/* ============================= */
-/* 📦 BACKFILL ORDERS (HISTORY) */
-/* ============================= */
+const processSingleOrder = async (
+    order,
+    account
+) => {
 
-exports.backfillOrders = async () => {
     try {
+
+        console.log(
+            "INSERTING ORDER:",
+            order.order_id
+        );
+
+        await orderModel.upsertOrder(
+            order,
+            account.account_code
+        );
+
+        const items = await fetchOrderItems(
+            account,
+            order.order_id
+        );
+
+        await itemModel.replaceOrderItems(
+            order.order_id,
+            items
+        );
+
+        console.log(
+            `ORDER SYNCED ${order.order_id}`
+        );
+
+    } catch (error) {
+
+        console.log("=================================");
+        console.log("ORDER PROCESS FAILED");
+        console.log("ORDER ID:", order.order_id);
+        console.log("ERROR:", error.message);
+
+        if (error.sqlMessage) {
+            console.log("SQL:", error.sqlMessage);
+        }
+
+        if (error.response?.data) {
+            console.log("API:", error.response.data);
+        }
+
+        console.log("FULL ERROR:", error);
+        console.log("=================================");
+    }
+};
+
+exports.syncOrders = async () => {
+
+    if (isSyncRunning) {
+
+        console.log("Sync already running");
+
+        return;
+    }
+
+    isSyncRunning = true;
+
+    try {
+
+        console.log("ORDER SYNC STARTED");
+
         const accounts = await accountModel.getAllAccounts();
 
         for (let account of accounts) {
 
-            const apiPath = "/orders/get";
-            const itemsPath = "/order/items/get";
+            try {
 
-            let startDate = new Date("2022-01-01T00:00:00Z");
-            const today = new Date();
+                console.log(
+                    `ACCOUNT: ${account.account_name}`
+                );
 
-            while (startDate < today) {
+                const apiPath = "/orders/get";
 
-                let endDate = new Date(startDate);
-                endDate.setMonth(endDate.getMonth() + 1);
+                const lastSync = account.last_sync_time
+                    ? new Date(account.last_sync_time)
+                    : new Date(Date.now() - 10 * 60 * 1000);
+
+                const now = new Date();
 
                 let offset = 0;
                 let hasMore = true;
 
                 while (hasMore) {
 
-                    const params = {
-                        app_key: account.app_key,
-                        access_token: account.access_token,
-                        timestamp: Date.now().toString(),
-                        sign_method: "sha256",
-                        update_after: startDate.toISOString(),
-                        update_before: endDate.toISOString(),
-                        limit: "100",
-                        offset: offset.toString()
-                    };
+                    try {
 
-                    params.sign = generateSignature(apiPath, params, account.app_secret);
-
-                    const response = await axios.get(
-                        `${account.api_base}${apiPath}`,
-                        { params }
-                    );
-
-                    const orders = response.data?.data?.orders || [];
-
-                    if (orders.length === 0) break;
-
-                    for (let order of orders) {
-
-                        await orderModel.upsertOrder(order, account.account_code);
-
-                        const itemParams = {
+                        const params = {
                             app_key: account.app_key,
                             access_token: account.access_token,
                             timestamp: Date.now().toString(),
                             sign_method: "sha256",
-                            order_id: order.order_id
+                            created_after: lastSync.toISOString(),
+                            created_before: now.toISOString(),
+                            limit: "100",
+                            offset: offset.toString()
                         };
 
-                        itemParams.sign = generateSignature(itemsPath, itemParams, account.app_secret);
-
-                        const itemResponse = await axios.get(
-                            `${account.api_base}${itemsPath}`,
-                            { params: itemParams }
+                        params.sign = generateSignature(
+                            apiPath,
+                            params,
+                            account.app_secret
                         );
 
-                        const items = itemResponse.data?.data || [];
+                        console.log(
+                            `FETCHING OFFSET ${offset}`
+                        );
 
-                        await itemModel.replaceOrderItems(order.order_id, items);
-                    }
+                        const response = await axios.get(
+                            `${account.api_base}${apiPath}`,
+                            {
+                                params,
+                                timeout: 20000
+                            }
+                        );
 
-                    if (orders.length < 100) {
-                        hasMore = false;
-                    } else {
+                        console.log(
+                            "FULL API RESPONSE:",
+                            JSON.stringify(response.data, null, 2)
+                        );
+
+                        const orders =
+                            response.data?.data?.orders || [];
+
+                        console.log(
+                            `ORDERS FOUND ${orders.length}`
+                        );
+
+                        if (!orders.length) {
+                            break;
+                        }
+
+                        for (let order of orders) {
+
+                            await processSingleOrder(
+                                order,
+                                account
+                            );
+                        }
+
+                        if (orders.length < 100) {
+
+                            hasMore = false;
+
+                        } else {
+
+                            offset += 100;
+                        }
+
+                    } catch (pageError) {
+
+                        console.log(
+                            `PAGE FAILED OFFSET ${offset}`,
+                            pageError.message
+                        );
+
                         offset += 100;
                     }
                 }
 
-                startDate = endDate;
-            }
+                await accountModel.updateLastSync(
+                    account.account_code,
+                    now
+                );
 
-            await accountModel.updateLastSync(account.account_code, today);
+                console.log(
+                    `ACCOUNT COMPLETED ${account.account_name}`
+                );
+
+            } catch (accountError) {
+
+                console.log(
+                    `ACCOUNT FAILED ${account.account_name}`,
+                    accountError.message
+                );
+            }
         }
 
-        console.log("✅ Backfill Completed");
+        console.log("ORDER SYNC COMPLETED");
 
     } catch (err) {
-        console.error("❌ Backfill Error:", err.message);
+
+        console.error(
+            "SYNC ERROR:",
+            err.message
+        );
+
+    } finally {
+
+        isSyncRunning = false;
     }
 };
 
-/* ============================= */
-/* 📊 GET ORDERS FROM DB */
-/* ============================= */
+exports.backfillOrders = async () => {
+
+    if (isBackfillRunning) {
+
+        console.log("Backfill already running");
+
+        return;
+    }
+
+    isBackfillRunning = true;
+
+    try {
+
+        console.log("BACKFILL STARTED");
+
+        const accounts = await accountModel.getAllAccounts();
+
+        for (let account of accounts) {
+
+            try {
+
+                console.log(
+                    `BACKFILL ACCOUNT ${account.account_name}`
+                );
+
+                const apiPath = "/orders/get";
+
+                let startDate = new Date(
+                    "2022-01-01T00:00:00Z"
+                );
+
+                const today = new Date();
+
+                while (startDate < today) {
+
+                    let endDate = new Date(startDate);
+
+                    endDate.setMonth(
+                        endDate.getMonth() + 1
+                    );
+
+                    console.log(
+                        `RANGE ${startDate.toISOString()} → ${endDate.toISOString()}`
+                    );
+
+                    let offset = 0;
+                    let hasMore = true;
+
+                    while (hasMore) {
+
+                        try {
+
+                            const params = {
+                                app_key: account.app_key,
+                                access_token: account.access_token,
+                                timestamp: Date.now().toString(),
+                                sign_method: "sha256",
+                                created_after: startDate.toISOString(),
+                                created_before: endDate.toISOString(),
+                                limit: "100",
+                                offset: offset.toString()
+                            };
+
+                            params.sign = generateSignature(
+                                apiPath,
+                                params,
+                                account.app_secret
+                            );
+
+                            console.log(
+                                `BACKFILL OFFSET ${offset}`
+                            );
+
+                            const response = await axios.get(
+                                `${account.api_base}${apiPath}`,
+                                {
+                                    params,
+                                    timeout: 20000
+                                }
+                            );
+
+                            console.log(
+                                "FULL API RESPONSE:",
+                                JSON.stringify(response.data, null, 2)
+                            );
+
+                            const orders =
+                                response.data?.data?.orders || [];
+
+                            console.log(
+                                `ORDERS FOUND ${orders.length}`
+                            );
+
+                            if (!orders.length) {
+                                break;
+                            }
+
+                            for (let order of orders) {
+
+                                await processSingleOrder(
+                                    order,
+                                    account
+                                );
+                            }
+
+                            if (orders.length < 100) {
+
+                                hasMore = false;
+
+                            } else {
+
+                                offset += 100;
+                            }
+
+                        } catch (pageError) {
+
+                            console.log(
+                                `BACKFILL PAGE FAILED OFFSET ${offset}`,
+                                pageError.message
+                            );
+
+                            offset += 100;
+                        }
+                    }
+
+                    startDate = endDate;
+                }
+
+                await accountModel.updateLastSync(
+                    account.account_code,
+                    today
+                );
+
+                console.log(
+                    `BACKFILL ACCOUNT COMPLETED ${account.account_name}`
+                );
+
+            } catch (accountError) {
+
+                console.log(
+                    `BACKFILL ACCOUNT FAILED ${account.account_name}`,
+                    accountError.message
+                );
+            }
+        }
+
+        console.log("BACKFILL COMPLETED");
+
+    } catch (err) {
+
+        console.error(
+            "BACKFILL ERROR:",
+            err.message
+        );
+
+    } finally {
+
+        isBackfillRunning = false;
+    }
+};
 
 exports.getOrders = async (req, res) => {
+
     try {
 
         const [orders] = await db.query(`
-            SELECT o.*, a.account_name
+            SELECT 
+                o.*, 
+                a.account_name
             FROM orders o
-            JOIN daraz_accounts a 
+            JOIN daraz_accounts a
                 ON o.account_code = a.account_code
             ORDER BY o.created_at_daraz DESC
         `);
@@ -237,33 +466,66 @@ exports.getOrders = async (req, res) => {
         for (let order of orders) {
 
             const [items] = await db.query(
-                "SELECT * FROM order_items WHERE order_id = ?",
+                `
+                SELECT *
+                FROM order_items
+                WHERE order_id = ?
+                `,
                 [order.order_id]
             );
 
             order.products = items;
+
             order.statuses = [order.order_status];
 
-            order.address_billing = safeParse(order.address_billing);
-            order.address_shipping = safeParse(order.address_shipping);
+            order.address_billing = safeParse(
+                order.address_billing
+            );
+
+            order.address_shipping = safeParse(
+                order.address_shipping
+            );
         }
 
-        const totalSales = orders.reduce((sum, order) => {
-            if (order.order_status === "delivered") {
-                return sum + Number(order.price || 0);
-            }
-            return sum;
-        }, 0);
+        const totalSales = orders.reduce(
+            (sum, order) => {
+
+                if (
+                    order.order_status === "delivered"
+                ) {
+                    return (
+                        sum + Number(order.price || 0)
+                    );
+                }
+
+                return sum;
+            },
+            0
+        );
 
         res.json({
-            totalAccounts: new Set(orders.map(o => o.account_code)).size,
+            totalAccounts: new Set(
+                orders.map(
+                    o => o.account_code
+                )
+            ).size,
+
             totalOrders: orders.length,
+
             totalSales,
+
             orders
         });
 
     } catch (error) {
-        console.error("❌ GET ORDERS ERROR:", error.message);
-        res.status(500).json({ error: error.message });
+
+        console.error(
+            "GET ORDERS ERROR:",
+            error.message
+        );
+
+        res.status(500).json({
+            error: error.message
+        });
     }
 };

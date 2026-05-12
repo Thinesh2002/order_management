@@ -2,12 +2,13 @@ import { useEffect, useState, useMemo } from "react";
 import API from "../../../config/api";
 import { motion, AnimatePresence } from "framer-motion";
 import DatePicker from "react-datepicker";
+import { Chart } from "react-google-charts"; 
 import "react-datepicker/dist/react-datepicker.css";
 import { 
   Search, Package, DollarSign, TrendingUp, 
   Clock, CheckCircle2, XCircle, 
   Truck, Box, CalendarDays, Calendar as CalendarIcon,
-  Store, ChevronDown, Check, Layers
+  Store, ChevronDown, Check, Layers, Download, ChevronLeft, ChevronRight, BarChart3, CreditCard, RotateCcw
 } from "lucide-react";
 
 // --- MULTI-SELECT STATUS DROPDOWN COMPONENT ---
@@ -30,7 +31,7 @@ function StatusMultiSelect({ selectedStatuses, setSelectedStatuses }) {
   };
 
   return (
-    <div className="relative w-[220px]">
+    <div className="relative z-20 w-[220px]">
       <div 
         onClick={() => setIsOpen(!isOpen)}
         className="bg-white px-3.5 py-2.5 rounded-xl border border-slate-200 flex items-center justify-between cursor-pointer group hover:border-blue-400 transition-all shadow-sm"
@@ -89,12 +90,12 @@ function StatusMultiSelect({ selectedStatuses, setSelectedStatuses }) {
 }
 
 // --- CUSTOM SELECT COMPONENT ---
-function CustomSelect({ value, onChange, options, icon: Icon }) {
+function CustomSelect({ value, onChange, options, icon: Icon, width = "w-[200px]" }) {
   const [isOpen, setIsOpen] = useState(false);
   const selectedLabel = options.find(opt => opt.value === value)?.label || value;
 
   return (
-    <div className="relative w-[200px]">
+    <div className={`relative z-20 ${width}`}>
       <div 
         onClick={() => setIsOpen(!isOpen)}
         className="bg-white px-3.5 py-2.5 rounded-xl border border-slate-200 flex items-center justify-between cursor-pointer hover:border-blue-400 transition-all shadow-sm"
@@ -133,15 +134,16 @@ function CustomSelect({ value, onChange, options, icon: Icon }) {
   );
 }
 
-function StatCard({ title, value, icon }) {
+function StatCard({ title, value, icon, subText, colorClass }) {
   return (
     <div className="bg-white p-6 rounded-[32px] border border-slate-200 flex flex-col gap-3 hover:shadow-lg transition-shadow">
-      <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center">
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${colorClass || 'bg-slate-50'}`}>
         {icon}
       </div>
       <div>
         <h4 className="text-slate-400 font-black text-[10px] uppercase tracking-widest mb-1">{title}</h4>
         <p className="text-xl font-black text-slate-900 tracking-tight">{value}</p>
+        {subText && <p className="text-[9px] font-bold text-slate-500 uppercase mt-1 italic">{subText}</p>}
       </div>
     </div>
   );
@@ -172,10 +174,16 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedStatuses, setSelectedStatuses] = useState([]); 
-  const [dateRange, setDateRange] = useState("all");
+  const [dateRange, setDateRange] = useState("thisMonth");
   const [selectedStore, setSelectedStore] = useState("all");
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+  const [selectedMonth, setSelectedMonth] = useState("all");
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
 
   useEffect(() => { fetchOrders(); }, []);
 
@@ -192,6 +200,23 @@ export default function OrdersPage() {
     const names = orders.map(o => o.account_name).filter(Boolean);
     return ["all", ...new Set(names)];
   }, [orders]);
+
+  const years = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    let y = [];
+    for (let i = 2020; i <= currentYear; i++) {
+      y.push({ value: i.toString(), label: i.toString() });
+    }
+    return y.reverse();
+  }, []);
+
+  const months = [
+    { value: "all", label: "All Months" },
+    { value: "0", label: "January" }, { value: "1", label: "February" }, { value: "2", label: "March" },
+    { value: "3", label: "April" }, { value: "4", label: "May" }, { value: "5", label: "June" },
+    { value: "6", label: "July" }, { value: "7", label: "August" }, { value: "8", label: "September" },
+    { value: "9", label: "October" }, { value: "10", label: "November" }, { value: "11", label: "December" },
+  ];
 
   const filteredOrders = useMemo(() => {
     let data = [...orders];
@@ -213,56 +238,124 @@ export default function OrdersPage() {
 
     if (selectedStore !== "all") data = data.filter(o => o.account_name === selectedStore);
 
-    if (dateRange !== "all") {
-      data = data.filter(o => {
-        // BACKEND FIELD NAME FIX: created_at_daraz
-        const orderDateStr = o.created_at_daraz || o.created_at;
-        if (!orderDateStr) return true;
-        
-        const orderDate = new Date(orderDateStr);
-        const diffMs = now - orderDate;
-        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    data = data.filter(o => {
+      const orderDateStr = o.created_at_daraz || o.created_at;
+      if (!orderDateStr) return true;
+      const orderDate = new Date(orderDateStr);
 
-        switch (dateRange) {
-          case "today": return orderDate >= todayStart;
-          case "7d": return diffDays <= 7;
-          case "30d": return diffDays <= 30;
-          case "90d": return diffDays <= 90;
-          case "365d": return diffDays <= 365;
-          case "thisMonth": return orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear();
-          case "lastMonth": {
-            const lastM = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-            return orderDate.getMonth() === lastM.getMonth() && orderDate.getFullYear() === lastM.getFullYear();
-          }
-          case "custom":
-            if (startDate && endDate) {
-                const s = new Date(startDate);
-                s.setHours(0, 0, 0, 0);
-                const e = new Date(endDate);
-                e.setHours(23, 59, 59, 999);
-                return orderDate >= s && orderDate <= e;
-            }
-            return true;
-          default: return true;
+      if (dateRange === "custom" && startDate && endDate) {
+        return orderDate >= new Date(startDate).setHours(0,0,0,0) && orderDate <= new Date(endDate).setHours(23,59,59,999);
+      }
+
+      if (dateRange === "yearMonth") {
+        const yearMatch = orderDate.getFullYear().toString() === selectedYear;
+        const monthMatch = selectedMonth === "all" || orderDate.getMonth().toString() === selectedMonth;
+        return yearMatch && monthMatch;
+      }
+
+      const diffDays = (now - orderDate) / (1000 * 60 * 60 * 24);
+      switch (dateRange) {
+        case "today": return orderDate >= todayStart;
+        case "7d": return diffDays <= 7;
+        case "30d": return diffDays <= 30;
+        case "thisMonth": return orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear();
+        case "lastMonth": {
+          const lastM = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          return orderDate.getMonth() === lastM.getMonth() && orderDate.getFullYear() === lastM.getFullYear();
         }
-      });
-    }
-    return data;
-  }, [orders, search, selectedStatuses, dateRange, selectedStore, startDate, endDate]);
+        case "all": return true;
+        default: return true;
+      }
+    });
 
-  const totalSales = filteredOrders.reduce((sum, o) => sum + parseFloat(o.price || 0), 0);
+    return data;
+  }, [orders, search, selectedStatuses, dateRange, selectedStore, startDate, endDate, selectedYear, selectedMonth]);
+
+  // --- STATS LOGIC (DYNAMIC: CHANGES WITH STATUS FILTER) ---
+  const dynamicStats = useMemo(() => {
+    // These stats use filteredOrders which already includes status/date filters
+    const totalSales = filteredOrders.reduce((sum, o) => sum + parseFloat(o.price || 0), 0);
+    const totalExpenses = filteredOrders.reduce((sum, o) => sum + (parseFloat(o.shipping_fee || 0) + (parseFloat(o.price || 0) * 0.12)), 0);
+    
+    const getCount = (status) => filteredOrders.filter(o => o.statuses?.some(s => s.toLowerCase() === status)).length;
+
+    return {
+      activeRevenue: totalSales,
+      activeNet: totalSales - totalExpenses,
+      activeExpenses: totalExpenses,
+      activeCount: filteredOrders.length,
+      canceledCount: getCount('canceled'),
+      pendingCount: getCount('pending'),
+      readyToShipCount: getCount('ready_to_ship'),
+      packedCount: getCount('packed')
+    };
+  }, [filteredOrders]);
+
+  const monthlySummary = useMemo(() => {
+    const report = {};
+    orders.forEach(o => {
+      const d = new Date(o.created_at_daraz || o.created_at);
+      const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
+      if (!report[key]) report[key] = { year: d.getFullYear(), month: d.toLocaleString('default', { month: 'short' }), sales: 0, exp: 0 };
+      const price = parseFloat(o.price || 0);
+      report[key].sales += price;
+      report[key].exp += (parseFloat(o.shipping_fee || 0) + (price * 0.12));
+    });
+    return Object.values(report).sort((a, b) => b.year - a.year);
+  }, [orders]);
+
+  const lineChartData = useMemo(() => {
+    const data = [["Date", "Sales"]];
+    const dailyMap = {};
+    filteredOrders.forEach(o => {
+      const date = new Date(o.created_at_daraz || o.created_at).toLocaleDateString();
+      dailyMap[date] = (dailyMap[date] || 0) + parseFloat(o.price || 0);
+    });
+    Object.keys(dailyMap).sort((a,b) => new Date(a) - new Date(b)).forEach(date => data.push([date, dailyMap[date]]));
+    return data.length > 1 ? data : [["Date", "Sales"], ["No Data", 0]];
+  }, [filteredOrders]);
+
+  const pieChartData = useMemo(() => {
+    const data = [["Status", "Count"]];
+    const statusMap = {};
+    filteredOrders.forEach(o => {
+      const s = o.statuses?.[0] || "Unknown";
+      statusMap[s] = (statusMap[s] || 0) + 1;
+    });
+    Object.entries(statusMap).forEach(([status, count]) => data.push([status, count]));
+    return data.length > 1 ? data : [["Status", "Count"], ["Empty", 1]];
+  }, [filteredOrders]);
+
+  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
+  const currentTableData = useMemo(() => {
+    const firstPageIndex = (currentPage - 1) * itemsPerPage;
+    return filteredOrders.slice(firstPageIndex, firstPageIndex + itemsPerPage);
+  }, [filteredOrders, currentPage]);
+
+  const exportToCSV = () => {
+    const headers = ["Order ID,Date,Customer,Status,Account,Price,Shipping Fee,Net Sales"];
+    const csvData = filteredOrders.map(o => {
+      const net = (parseFloat(o.price) - (parseFloat(o.shipping_fee || 0) + (parseFloat(o.price) * 0.12))).toFixed(2);
+      return `${o.order_id},${new Date(o.created_at_daraz || o.created_at).toLocaleDateString()},${o.customer_first_name || 'Guest'},${o.statuses?.[0]},${o.account_name},${o.price},${o.shipping_fee || 0},${net}`;
+    });
+    const blob = new Blob([[headers, ...csvData].join("\n")], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Daraz_Export_${dateRange}_${new Date().toLocaleDateString()}.csv`;
+    a.click();
+  };
 
   if (loading) return (
     <div className="min-h-screen flex flex-col items-center justify-center ">
       <div className="w-12 h-12 border-4 border-blue-900 border-t-transparent rounded-full animate-spin"></div>
-      <p className="font-black text-slate-400 mt-4 tracking-widest uppercase text-xs">Loading Orders...</p>
+      <p className="font-black text-slate-400 mt-4 tracking-widest uppercase text-xs">Loading Dashboard...</p>
     </div>
   );
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className=" min-h-screen font-sans">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className=" min-h-screen font-sans bg-slate-50/20">
       
-      {/* DatePicker Overrides */}
       <style>{`
         .react-datepicker { border-radius: 16px; border: 1px solid #e2e8f0; font-family: inherit; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
         .react-datepicker__header { background: white; border-bottom: none; }
@@ -276,68 +369,133 @@ export default function OrdersPage() {
 
       <div className="max-w-[1600px] mx-auto p-4 sm:p-8">
         
-        {/* HEADER */}
-        <header className="mb-8 flex flex-wrap justify-between items-center gap-5">
-          <div className="flex items-center gap-4">
-            <div className="bg-blue-900 p-3 rounded-2xl shadow-lg">
-              <Package className="text-white" size={24} />
+        {/* HEADER & GLOBAL FILTERS */}
+        <header className="mb-8 space-y-6">
+          <div className="flex flex-wrap justify-between items-center gap-5">
+            <div className="flex items-center gap-4">
+              <div className="bg-blue-900 p-3 rounded-2xl shadow-lg">
+                <Package className="text-white" size={24} />
+              </div>
+              <div>
+                <h1 className="text-2xl font-black text-slate-900 leading-none">Daraz Analytics OS</h1>
+                <p className="text-slate-400 text-sm font-bold mt-1 uppercase tracking-tighter">Real-time Performance Monitoring</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-black text-slate-900 leading-none">Orders Master List</h1>
-              <p className="text-slate-400 text-sm font-bold mt-1">Viewing {filteredOrders.length} entries</p>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button onClick={exportToCSV} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-xs font-black hover:bg-emerald-700 transition-all shadow-md">
+                <Download size={14} /> Export CSV
+              </button>
+              <StatusMultiSelect selectedStatuses={selectedStatuses} setSelectedStatuses={setSelectedStatuses} />
+              <CustomSelect 
+                icon={Store} value={selectedStore} onChange={setSelectedStore}
+                options={availableStores.map(s => ({ value: s, label: s === 'all' ? 'All Stores' : s }))}
+              />
+              <CustomSelect 
+                icon={CalendarIcon} value={dateRange} onChange={(val) => {setDateRange(val); setCurrentPage(1);}}
+                options={[
+                  { value: "thisMonth", label: "This Month" },
+                  { value: "lastMonth", label: "Last Month" },
+                  { value: "yearMonth", label: "Filter by Year/Month" },
+                  { value: "custom", label: "Custom Date Range" },
+                  { value: "today", label: "Today" },
+                  { value: "7d", label: "Last 7 Days" },
+                  { value: "30d", label: "Last 30 Days" },
+                  { value: "all", label: "Lifetime History" },
+                ]}
+              />
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <StatusMultiSelect selectedStatuses={selectedStatuses} setSelectedStatuses={setSelectedStatuses} />
-            <CustomSelect 
-              icon={Store} value={selectedStore} onChange={setSelectedStore}
-              options={availableStores.map(s => ({ value: s, label: s === 'all' ? 'All Stores' : s }))}
-            />
-            <CustomSelect 
-              icon={CalendarIcon} value={dateRange} onChange={setDateRange}
-              options={[
-                { value: "all", label: "Lifetime History" },
-                { value: "today", label: "Today" },
-                { value: "7d", label: "Last 7 Days" },
-                { value: "30d", label: "Last 30 Days" },
-                { value: "90d", label: "Last 90 Days" },
-                { value: "365d", label: "Last 365 Days" },
-                { value: "thisMonth", label: "This Month" },
-                { value: "lastMonth", label: "Last Month" },
-                { value: "custom", label: "Custom Range" },
-              ]}
-            />
-
-            {dateRange === "custom" && (
-              <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2">
-                <DatePicker selected={startDate} onChange={d => setStartDate(d)} placeholderText="Start Date" className="date-input-custom" />
-                <span className="text-[10px] font-black text-slate-400 uppercase">to</span>
-                <DatePicker selected={endDate} onChange={d => setEndDate(d)} placeholderText="End Date" className="date-input-custom" minDate={startDate} />
+          <AnimatePresence>
+            {(dateRange === "custom" || dateRange === "yearMonth") && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="flex flex-wrap items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                {dateRange === "custom" && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black text-slate-400 uppercase">From:</span>
+                      <DatePicker selected={startDate} onChange={d => setStartDate(d)} placeholderText="Start Date" className="date-input-custom" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black text-slate-400 uppercase">To:</span>
+                      <DatePicker selected={endDate} onChange={d => setEndDate(d)} placeholderText="End Date" className="date-input-custom" minDate={startDate} />
+                    </div>
+                  </>
+                )}
+                {dateRange === "yearMonth" && (
+                  <>
+                    <CustomSelect icon={CalendarDays} width="w-[140px]" value={selectedYear} onChange={setSelectedYear} options={years} />
+                    <CustomSelect icon={Layers} width="w-[160px]" value={selectedMonth} onChange={setSelectedMonth} options={months} />
+                  </>
+                )}
+                <button onClick={() => { setDateRange("thisMonth"); setStartDate(null); setEndDate(null); }} className="ml-auto flex items-center gap-1 text-[10px] font-black text-rose-500 uppercase hover:text-rose-700">
+                  <RotateCcw size={12} /> Reset Filter
+                </button>
               </motion.div>
             )}
-          </div>
+          </AnimatePresence>
         </header>
 
-        {/* STATS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <StatCard title="Total Revenue" value={`Rs ${totalSales.toLocaleString()}`} icon={<DollarSign className="text-blue-600" />} />
-          <StatCard title="Total Volume" value={filteredOrders.length} icon={<Box className="text-indigo-600" />} />
-          <StatCard title="Avg. Ticket" value={`Rs ${(totalSales / (filteredOrders.length || 1)).toFixed(0)}`} icon={<TrendingUp className="text-emerald-600" />} />
-          <StatCard title="Live Feed" value="Online" icon={<Clock className="text-amber-600" />} />
+        {/* PRIMARY STATS (DYNAMIC BASED ON FILTERS) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+          <StatCard title="Active Revenue" value={`Rs ${dynamicStats.activeRevenue.toLocaleString()}`} icon={<DollarSign className="text-emerald-600" />} colorClass="bg-emerald-50" subText={`${dynamicStats.activeCount} Total Filtered`} />
+          <StatCard title="Net Profit (Est)" value={`Rs ${dynamicStats.activeNet.toLocaleString()}`} icon={<TrendingUp className="text-blue-600" />} colorClass="bg-blue-50" subText="Revenue - Fees" />
+          <StatCard title="Platform Fees" value={`Rs ${dynamicStats.activeExpenses.toLocaleString()}`} icon={<CreditCard className="text-rose-600" />} colorClass="bg-rose-50" subText="Tax + Ship + Commission" />
+          <StatCard title="Total Volume" value={filteredOrders.length} icon={<Package className="text-slate-600" />} subText="Orders in current view" />
         </div>
 
-        {/* SEARCH BAR */}
+        {/* SECONDARY STATS (STATUS SPECIFIC) */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+          <StatCard title="Pending" value={dynamicStats.pendingCount} icon={<Clock className="text-amber-500" />} colorClass="bg-amber-50" />
+          <StatCard title="Packed" value={dynamicStats.packedCount} icon={<Box className="text-indigo-500" />} colorClass="bg-indigo-50" />
+          <StatCard title="Ready to Ship" value={dynamicStats.readyToShipCount} icon={<Truck className="text-blue-500" />} colorClass="bg-blue-50" />
+          <StatCard title="Canceled" value={dynamicStats.canceledCount} icon={<XCircle className="text-rose-500" />} colorClass="bg-rose-50" />
+        </div>
+
+        {/* CHARTS */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <div className="lg:col-span-2 bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm">
+            <h3 className="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest">Revenue Trend ({dateRange})</h3>
+            <Chart chartType="LineChart" width="100%" height="300px" data={lineChartData} options={{ curveType: "function", legend: "none", colors: ["#1e3a8a"], chartArea: { width: "90%", height: "70%" } }} />
+          </div>
+          <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm">
+            <h3 className="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest">Order Status Split</h3>
+            <Chart chartType="PieChart" width="100%" height="300px" data={pieChartData} options={{ pieHole: 0.4, colors: ["#10b981", "#3b82f6", "#6366f1", "#f59e0b", "#f43f5e", "#94a3b8"], legend: { position: "bottom" } }} />
+          </div>
+        </div>
+
+        {/* MONTHLY SUMMARY TABLE */}
+        <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden mb-8">
+          <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+            <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-500">Historical Financial Performance</h2>
+          </div>
+          <table className="w-full text-left">
+            <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              <tr><th className="px-6 py-4">Year</th><th className="px-6 py-4">Month</th><th className="px-6 py-4 text-right">Total Sales</th><th className="px-6 py-4 text-right">Platform Expenses</th><th className="px-6 py-4 text-right text-blue-900">Net Sales</th></tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-600">
+              {monthlySummary.map((row, i) => (
+                <tr key={i} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4">{row.year}</td><td className="px-6 py-4">{row.month}</td>
+                  <td className="px-6 py-4 text-right">Rs {row.sales.toLocaleString()}</td>
+                  <td className="px-6 py-4 text-right text-rose-400">Rs {row.exp.toLocaleString()}</td>
+                  <td className="px-6 py-4 text-right font-black text-slate-900">Rs {(row.sales - row.exp).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* SEARCH & DETAILED TABLE */}
         <div className="mb-6 relative group">
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
           <input 
             className="w-full pl-14 pr-6 py-4.5 rounded-[22px] border border-slate-200 bg-white shadow-sm outline-none focus:ring-4 focus:ring-blue-100 transition-all font-semibold text-slate-700"
-            placeholder="Search Order ID, Customer name or Product title..." 
-            onChange={e => setSearch(e.target.value)}
+            placeholder="Search Order ID, Customer name or Product Title..." 
+            onChange={e => {setSearch(e.target.value); setCurrentPage(1);}}
           />
         </div>
 
-        {/* TABLE */}
         <div className="bg-white rounded-[32px] shadow-xl border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[1000px]">
@@ -345,113 +503,56 @@ export default function OrdersPage() {
                 <tr className="bg-slate-50 border-b border-slate-100">
                   <th className="p-6 text-[10px] font-black uppercase text-slate-400 tracking-widest">Order Info</th>
                   <th className="p-6 text-[10px] font-black uppercase text-slate-400 tracking-widest">Items</th>
-                  <th className="p-6 text-[10px] font-black uppercase text-slate-400 tracking-widest">Customer & Location</th>
+                  <th className="p-6 text-[10px] font-black uppercase text-slate-400 tracking-widest">Customer</th>
                   <th className="p-6 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Status</th>
                   <th className="p-6 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Amount</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {filteredOrders.map((o) => (
-                  <tr 
-                    key={o.order_id} 
-                    onClick={() => window.open(`/daraz-orders/${o.order_id}`, "_blank")}
-                    className="hover:bg-slate-50/80 cursor-pointer transition-colors"
-                  >
-                    {/* Order Info */}
+                {currentTableData.map((o) => (
+                  <tr key={o.order_id} onClick={() => window.open(`/daraz-orders/${o.order_id}`, "_blank")} className="hover:bg-slate-50/80 cursor-pointer transition-colors">
                     <td className="p-6 align-top">
                       <div className="font-black text-slate-900 text-[15px]">#{o.order_id}</div>
-                      <div className="text-[10px] font-black text-blue-500 mt-1 uppercase tracking-tight flex items-center gap-1">
-                        <Store size={10} /> {o.account_name}
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-bold mt-2 uppercase">
-                        {o.payment_method || 'N/A'}
-                      </div>
+                      <div className="text-[10px] font-black text-blue-500 mt-1 uppercase tracking-tight flex items-center gap-1"><Store size={10} /> {o.account_name}</div>
                     </td>
-
-                    {/* Product Details */}
                     <td className="p-6 align-top">
                       <div className="space-y-3 max-w-[350px]">
-                        {o.products && o.products.length > 0 ? (
-                          o.products.map((prod, idx) => (
-                            <div key={idx} className="flex items-center gap-3 bg-slate-50/50 p-2 rounded-xl border border-slate-100">
-                              <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-white border border-slate-200">
-                                <img 
-                                  src={prod.image} 
-                                  alt="product" 
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => { e.target.src = "https://via.placeholder.com/100"; }}
-                                />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-[11px] font-bold text-slate-700 line-clamp-1 leading-tight">
-                                  {prod.product_name || prod.title}
-                                </p>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <span className="text-[9px] font-black text-slate-400 uppercase">SKU: {prod.sku?.split('-')[0]}</span>
-                                  <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-1.5 rounded">Rs {prod.price}</span>
-                                </div>
-                              </div>
+                        {o.products?.slice(0, 2).map((prod, idx) => (
+                          <div key={idx} className="flex items-center gap-3 bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+                            <img src={prod.image} className="w-10 h-10 rounded-lg object-cover bg-white" onError={(e) => { e.target.src = "https://via.placeholder.com/100"; }} />
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-bold text-slate-700 line-clamp-1 leading-tight">{prod.product_name || prod.title}</p>
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">SKU: {prod.sku?.split('-')[0]}</span>
                             </div>
-                          ))
-                        ) : (
-                          <div className="text-slate-300 text-[10px] font-black uppercase italic">No Product Data</div>
-                        )}
-                        {o.items_count > (o.products?.length || 0) && (
-                           <div className="text-[10px] font-black text-slate-400 pl-2">
-                             + {o.items_count - o.products.length} more items...
-                           </div>
-                        )}
+                          </div>
+                        ))}
                       </div>
                     </td>
-
-                    {/* Customer */}
                     <td className="p-6 align-top">
                       <div className="font-bold text-slate-700">{o.address_shipping?.first_name || o.customer_first_name || 'Guest'}</div>
-                      <div className="text-[11px] text-slate-400 font-semibold mt-1 flex items-center gap-1.5">
-                        <CalendarDays size={12} className="text-slate-300" /> {new Date(o.created_at_daraz || o.created_at).toLocaleDateString()}
-                      </div>
-                      <div className="text-[10px] font-black text-slate-400 uppercase mt-2 flex items-center gap-1">
-                        <Layers size={10} /> {o.address_shipping?.city || 'N/A'}, {o.address_shipping?.address3 || ''}
-                      </div>
+                      <div className="text-[10px] text-slate-400 font-semibold mt-1 flex items-center gap-1.5"><CalendarDays size={12} /> {new Date(o.created_at_daraz || o.created_at).toLocaleDateString()}</div>
                     </td>
-
-                    {/* Status */}
-                    <td className="p-6 text-center align-top">
-                      <div className="flex flex-col items-center gap-2">
-                        <StatusBadge status={o.statuses?.[0]} />
-                        {o.warehouse_code && (
-                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter italic">
-                            {o.warehouse_code}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Amount */}
-                    <td className="p-6 text-right align-top">
-                      <div className="font-black text-blue-900 text-base italic tracking-tighter">
-                        Rs {parseFloat(o.price || 0).toLocaleString()}
-                      </div>
-                      {parseFloat(o.voucher || 0) > 0 && (
-                        <div className="text-[10px] font-black text-rose-500 mt-1 uppercase">
-                          Disc: -{o.voucher}
-                        </div>
-                      )}
-                      <div className="text-[10px] font-bold text-slate-400 mt-1">
-                         Fee: Rs {o.shipping_fee || 0}
-                      </div>
-                    </td>
+                    <td className="p-6 text-center align-top"><StatusBadge status={o.statuses?.[0]} /></td>
+                    <td className="p-6 text-right align-top"><div className="font-black text-blue-900 text-base italic tracking-tighter">Rs {parseFloat(o.price || 0).toLocaleString()}</div></td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          {filteredOrders.length === 0 && (
-            <div className="py-24 text-center">
-              <Box size={48} className="text-slate-200 mx-auto mb-4" />
-              <p className="font-black text-slate-400 uppercase tracking-widest text-sm">No orders found</p>
+
+          {/* PAGINATION NAVIGATION */}
+          <div className="p-6 border-t border-slate-100 flex items-center justify-between bg-slate-50/30">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Showing {currentTableData.length} of {filteredOrders.length} Orders</p>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm">
+                <ChevronLeft size={18} className="text-blue-900" />
+              </button>
+              <div className="px-4 py-1.5 rounded-lg bg-blue-900 text-white text-xs font-black shadow-lg">Page {currentPage} of {totalPages || 1}</div>
+              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || totalPages === 0} className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm">
+                <ChevronRight size={18} className="text-blue-900" />
+              </button>
             </div>
-          )}
+          </div>
         </div>
       </div>
     </motion.div>
