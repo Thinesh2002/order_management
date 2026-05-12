@@ -8,7 +8,7 @@ import {
   Search, Package, DollarSign, TrendingUp, 
   Clock, CheckCircle2, XCircle, 
   Truck, Box, CalendarDays, Calendar as CalendarIcon,
-  Store, ChevronDown, Check, Layers, Download, ChevronLeft, ChevronRight, BarChart3, CreditCard, RotateCcw
+  Store, ChevronDown, Check, Layers, Download, ChevronLeft, ChevronRight, BarChart3, CreditCard, RotateCcw, RefreshCcw
 } from "lucide-react";
 
 // --- MULTI-SELECT STATUS DROPDOWN COMPONENT ---
@@ -19,6 +19,7 @@ function StatusMultiSelect({ selectedStatuses, setSelectedStatuses }) {
     { id: "delivered", label: "Delivered", icon: <CheckCircle2 size={14} className="text-emerald-600" /> },
     { id: "shipped", label: "Shipped", icon: <Truck size={14} className="text-blue-600" /> },
     { id: "packed", label: "Packed", icon: <Package size={14} className="text-amber-600" /> },
+    { id: "returned", label: "Returned", icon: <RefreshCcw size={14} className="text-purple-600" /> },
     { id: "canceled", label: "Canceled", icon: <XCircle size={14} className="text-rose-600" /> },
     { id: "pending", label: "Pending", icon: <Clock size={14} className="text-slate-500" /> },
     { id: "ready_to_ship", label: "Ready to Ship", icon: <Box size={14} className="text-indigo-600" /> },
@@ -154,6 +155,7 @@ function StatusBadge({ status }) {
     switch(s?.toLowerCase()) {
       case 'delivered': return "bg-emerald-50 text-emerald-600 border-emerald-100";
       case 'shipped': return "bg-blue-50 text-blue-600 border-blue-100";
+      case 'returned': return "bg-purple-50 text-purple-600 border-purple-100";
       case 'canceled': return "bg-rose-50 text-rose-600 border-rose-100";
       case 'packed': return "bg-amber-50 text-amber-600 border-amber-100";
       case 'shipped_back_success': return "bg-slate-100 text-slate-600 border-slate-200";
@@ -271,23 +273,44 @@ export default function OrdersPage() {
     return data;
   }, [orders, search, selectedStatuses, dateRange, selectedStore, startDate, endDate, selectedYear, selectedMonth]);
 
-  // --- STATS LOGIC (DYNAMIC: CHANGES WITH STATUS FILTER) ---
+  // --- STATS LOGIC (NET = RETURNS - EXPENSES if returned) ---
   const dynamicStats = useMemo(() => {
-    // These stats use filteredOrders which already includes status/date filters
-    const totalSales = filteredOrders.reduce((sum, o) => sum + parseFloat(o.price || 0), 0);
-    const totalExpenses = filteredOrders.reduce((sum, o) => sum + (parseFloat(o.shipping_fee || 0) + (parseFloat(o.price || 0) * 0.12)), 0);
-    
+    let totalSales = 0;
+    let totalReturnsValue = 0;
+    let totalExpenses = 0;
+    let netProfit = 0;
+
+    filteredOrders.forEach(o => {
+      const price = parseFloat(o.price || 0);
+      const ship = parseFloat(o.shipping_fee || 0);
+      const comm = price * 0.12;
+      const exp = ship + comm;
+
+      totalSales += price;
+      totalExpenses += exp;
+
+      if (o.statuses?.some(s => s.toLowerCase() === 'returned')) {
+        totalReturnsValue += price;
+        // Logic: Return - Expense (2899 - 597.88) show as negative impact
+        netProfit += (price - exp) * -1; 
+      } else {
+        netProfit += (price - exp);
+      }
+    });
+
     const getCount = (status) => filteredOrders.filter(o => o.statuses?.some(s => s.toLowerCase() === status)).length;
 
     return {
       activeRevenue: totalSales,
-      activeNet: totalSales - totalExpenses,
+      returnedRevenue: totalReturnsValue,
+      activeNet: netProfit,
       activeExpenses: totalExpenses,
       activeCount: filteredOrders.length,
       canceledCount: getCount('canceled'),
       pendingCount: getCount('pending'),
       readyToShipCount: getCount('ready_to_ship'),
-      packedCount: getCount('packed')
+      packedCount: getCount('packed'),
+      returnedCount: getCount('returned')
     };
   }, [filteredOrders]);
 
@@ -296,24 +319,54 @@ export default function OrdersPage() {
     orders.forEach(o => {
       const d = new Date(o.created_at_daraz || o.created_at);
       const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
-      if (!report[key]) report[key] = { year: d.getFullYear(), month: d.toLocaleString('default', { month: 'short' }), sales: 0, exp: 0 };
+      if (!report[key]) report[key] = { year: d.getFullYear(), month: d.toLocaleString('default', { month: 'short' }), sales: 0, exp: 0, returns: 0, net: 0 };
+      
       const price = parseFloat(o.price || 0);
+      const exp = (parseFloat(o.shipping_fee || 0) + (price * 0.12));
+      
       report[key].sales += price;
-      report[key].exp += (parseFloat(o.shipping_fee || 0) + (price * 0.12));
+      report[key].exp += exp;
+
+      if (o.statuses?.some(s => s.toLowerCase() === 'returned')) {
+        report[key].returns += price;
+        // Fixed Logic: total return - total expense (e.g. 2899 - 597.88 = 2301.12 loss)
+        report[key].net += (price - exp) * -1;
+      } else {
+        report[key].net += (price - exp);
+      }
     });
-    return Object.values(report).sort((a, b) => b.year - a.year);
+    return Object.values(report).sort((a, b) => b.year - a.year || b.month - a.month);
   }, [orders]);
 
-  const lineChartData = useMemo(() => {
-    const data = [["Date", "Sales"]];
-    const dailyMap = {};
-    filteredOrders.forEach(o => {
-      const date = new Date(o.created_at_daraz || o.created_at).toLocaleDateString();
-      dailyMap[date] = (dailyMap[date] || 0) + parseFloat(o.price || 0);
+  // --- AREA CHART DATA ---
+  const areaChartData = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const lastYear = currentYear - 1;
+    const monthsArr = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    
+    const data = [["Month", "Current Year Net", "Last Year Net"]];
+
+    monthsArr.forEach((m, i) => {
+      const getNet = (year) => {
+        const yearOrders = orders.filter(o => {
+          const d = new Date(o.created_at_daraz || o.created_at);
+          return d.getFullYear() === year && d.getMonth() === i;
+        });
+        
+        return yearOrders.reduce((acc, o) => {
+          const p = parseFloat(o.price || 0);
+          const e = (parseFloat(o.shipping_fee || 0) + (p * 0.12));
+          if (o.statuses?.some(s => s.toLowerCase() === 'returned')) {
+            return acc + ((p - e) * -1);
+          }
+          return acc + (p - e);
+        }, 0);
+      };
+      data.push([m, getNet(currentYear), getNet(lastYear)]);
     });
-    Object.keys(dailyMap).sort((a,b) => new Date(a) - new Date(b)).forEach(date => data.push([date, dailyMap[date]]));
-    return data.length > 1 ? data : [["Date", "Sales"], ["No Data", 0]];
-  }, [filteredOrders]);
+
+    return data;
+  }, [orders]);
 
   const pieChartData = useMemo(() => {
     const data = [["Status", "Count"]];
@@ -333,10 +386,13 @@ export default function OrdersPage() {
   }, [filteredOrders, currentPage]);
 
   const exportToCSV = () => {
-    const headers = ["Order ID,Date,Customer,Status,Account,Price,Shipping Fee,Net Sales"];
+    const headers = ["Order ID,Date,Customer,Status,Account,Price,Shipping Fee,Net Profit"];
     const csvData = filteredOrders.map(o => {
-      const net = (parseFloat(o.price) - (parseFloat(o.shipping_fee || 0) + (parseFloat(o.price) * 0.12))).toFixed(2);
-      return `${o.order_id},${new Date(o.created_at_daraz || o.created_at).toLocaleDateString()},${o.customer_first_name || 'Guest'},${o.statuses?.[0]},${o.account_name},${o.price},${o.shipping_fee || 0},${net}`;
+      const p = parseFloat(o.price || 0);
+      const e = (parseFloat(o.shipping_fee || 0) + (p * 0.12));
+      let net = p - e;
+      if (o.statuses?.some(s => s.toLowerCase() === 'returned')) net = (p - e) * -1;
+      return `${o.order_id},${new Date(o.created_at_daraz || o.created_at).toLocaleDateString()},${o.customer_first_name || 'Guest'},${o.statuses?.[0]},${o.account_name},${p},${o.shipping_fee || 0},${net.toFixed(2)}`;
     });
     const blob = new Blob([[headers, ...csvData].join("\n")], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
@@ -377,7 +433,7 @@ export default function OrdersPage() {
                 <Package className="text-white" size={24} />
               </div>
               <div>
-                <h1 className="text-2xl font-black text-slate-900 leading-none">Daraz Analytics OS</h1>
+                <h1 className="text-2xl font-black text-slate-900 leading-none">Daraz  Orders</h1>
                 <p className="text-slate-400 text-sm font-bold mt-1 uppercase tracking-tighter">Real-time Performance Monitoring</p>
               </div>
             </div>
@@ -436,57 +492,81 @@ export default function OrdersPage() {
           </AnimatePresence>
         </header>
 
-        {/* PRIMARY STATS (DYNAMIC BASED ON FILTERS) */}
+        {/* PRIMARY STATS */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          <StatCard title="Active Revenue" value={`Rs ${dynamicStats.activeRevenue.toLocaleString()}`} icon={<DollarSign className="text-emerald-600" />} colorClass="bg-emerald-50" subText={`${dynamicStats.activeCount} Total Filtered`} />
-          <StatCard title="Net Profit (Est)" value={`Rs ${dynamicStats.activeNet.toLocaleString()}`} icon={<TrendingUp className="text-blue-600" />} colorClass="bg-blue-50" subText="Revenue - Fees" />
-          <StatCard title="Platform Fees" value={`Rs ${dynamicStats.activeExpenses.toLocaleString()}`} icon={<CreditCard className="text-rose-600" />} colorClass="bg-rose-50" subText="Tax + Ship + Commission" />
-          <StatCard title="Total Volume" value={filteredOrders.length} icon={<Package className="text-slate-600" />} subText="Orders in current view" />
+          <StatCard title="Total Sales" value={`Rs ${dynamicStats.activeRevenue.toLocaleString()}`} icon={<DollarSign className="text-emerald-600" />} colorClass="bg-emerald-50" subText="Pre-Return Sales" />
+          <StatCard title=" Net Sales" value={`Rs ${dynamicStats.activeNet.toLocaleString()}`} icon={<TrendingUp className="text-blue-600" />} colorClass="bg-blue-50" subText="Sales - Returns - Fees" />
+          <StatCard title="Returns" value={`Rs ${dynamicStats.returnedRevenue.toLocaleString()}`} icon={<RefreshCcw className="text-purple-600" />} colorClass="bg-purple-50" subText={`${dynamicStats.returnedCount} Returned Orders`} />
+          <StatCard title=" Fees" value={`Rs ${dynamicStats.activeExpenses.toLocaleString()}`} icon={<CreditCard className="text-rose-600" />} colorClass="bg-rose-50" subText="Tax + Ship + Commission" />
         </div>
 
-        {/* SECONDARY STATS (STATUS SPECIFIC) */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-          <StatCard title="Pending" value={dynamicStats.pendingCount} icon={<Clock className="text-amber-500" />} colorClass="bg-amber-50" />
-          <StatCard title="Packed" value={dynamicStats.packedCount} icon={<Box className="text-indigo-500" />} colorClass="bg-indigo-50" />
-          <StatCard title="Ready to Ship" value={dynamicStats.readyToShipCount} icon={<Truck className="text-blue-500" />} colorClass="bg-blue-50" />
-          <StatCard title="Canceled" value={dynamicStats.canceledCount} icon={<XCircle className="text-rose-500" />} colorClass="bg-rose-50" />
-        </div>
+
 
         {/* CHARTS */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <div className="lg:col-span-2 bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm">
-            <h3 className="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest">Revenue Trend ({dateRange})</h3>
-            <Chart chartType="LineChart" width="100%" height="300px" data={lineChartData} options={{ curveType: "function", legend: "none", colors: ["#1e3a8a"], chartArea: { width: "90%", height: "70%" } }} />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm">
+            <h3 className="text-[10px] font-black uppercase text-slate-400 mb-6 tracking-widest">Net Profit Trend</h3>
+            <Chart 
+              chartType="AreaChart" 
+              width="100%" 
+              height="350px" 
+              data={areaChartData} 
+              options={{ 
+                colors: ["#3b82f6", "#f43f5e"], 
+                curveType: "function",
+                areaOpacity: 0.15,
+                chartArea: { width: "90%", height: "75%" }, 
+                legend: { position: "bottom" },
+                vAxis: { gridlines: { color: "#f1f5f9" } },
+                hAxis: { gridlines: { color: "transparent" } },
+                lineWidth: 3,
+                pointSize: 4
+              }} 
+            />
           </div>
           <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm">
-            <h3 className="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest">Order Status Split</h3>
-            <Chart chartType="PieChart" width="100%" height="300px" data={pieChartData} options={{ pieHole: 0.4, colors: ["#10b981", "#3b82f6", "#6366f1", "#f59e0b", "#f43f5e", "#94a3b8"], legend: { position: "bottom" } }} />
+            <h3 className="text-[10px] font-black uppercase text-slate-400 mb-6 tracking-widest">Order Status Split</h3>
+            <Chart 
+              chartType="PieChart" 
+              width="100%" 
+              height="350px" 
+              data={pieChartData} 
+              options={{ 
+                pieHole: 0.4, 
+                colors: ["#10b981", "#3b82f6", "#6366f1", "#f59e0b", "#f43f5e", "#94a3b8"], 
+                legend: { position: "bottom" },
+                chartArea: { width: "90%", height: "75%" }
+              }} 
+            />
           </div>
         </div>
 
-        {/* MONTHLY SUMMARY TABLE */}
+        {/* MONTHLY SUMMARY TABLE - FIXED LOGIC */}
         <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden mb-8">
           <div className="p-5 border-b border-slate-100 flex items-center justify-between">
             <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-500">Historical Financial Performance</h2>
           </div>
           <table className="w-full text-left">
             <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              <tr><th className="px-6 py-4">Year</th><th className="px-6 py-4">Month</th><th className="px-6 py-4 text-right">Total Sales</th><th className="px-6 py-4 text-right">Platform Expenses</th><th className="px-6 py-4 text-right text-blue-900">Net Sales</th></tr>
+              <tr><th className="px-6 py-4">Timeline</th><th className="px-6 py-4 text-right">Gross Sales</th><th className="px-6 py-4 text-right text-purple-600">Returns</th><th className="px-6 py-4 text-right text-rose-400">Expenses</th><th className="px-6 py-4 text-right text-blue-900 font-black">Net Profit</th></tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-600">
               {monthlySummary.map((row, i) => (
                 <tr key={i} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4">{row.year}</td><td className="px-6 py-4">{row.month}</td>
+                  <td className="px-6 py-4">{row.year} {row.month}</td>
                   <td className="px-6 py-4 text-right">Rs {row.sales.toLocaleString()}</td>
-                  <td className="px-6 py-4 text-right text-rose-400">Rs {row.exp.toLocaleString()}</td>
-                  <td className="px-6 py-4 text-right font-black text-slate-900">Rs {(row.sales - row.exp).toLocaleString()}</td>
+                  <td className="px-6 py-4 text-right text-purple-600">- Rs {row.returns.toLocaleString()}</td>
+                  <td className="px-6 py-4 text-right text-rose-400">- Rs {row.exp.toLocaleString()}</td>
+                  <td className={`px-6 py-4 text-right font-black ${row.net < 0 ? 'text-rose-600' : 'text-slate-900'}`}>
+                    Rs {row.net.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
 
-        {/* SEARCH & DETAILED TABLE */}
+        {/* SEARCH & TABLE */}
         <div className="mb-6 relative group">
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
           <input 
@@ -540,7 +620,6 @@ export default function OrdersPage() {
             </table>
           </div>
 
-          {/* PAGINATION NAVIGATION */}
           <div className="p-6 border-t border-slate-100 flex items-center justify-between bg-slate-50/30">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Showing {currentTableData.length} of {filteredOrders.length} Orders</p>
             <div className="flex items-center gap-2">
