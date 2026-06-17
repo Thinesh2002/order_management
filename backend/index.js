@@ -9,9 +9,12 @@ const productTrendRoutes = require("./routes/daraz/productTrendRoutes");
 const customerRoutes = require("./routes/customer/customer_route");
 const orderRoutes = require("./routes/manual_orders/order_route");
 const transorderRoutes = require("./routes/trans_ex_route/transex_route");
-const woo_orders_route = require("./routes/woo_orders/woo_orders_route")
+const woo_orders_route = require("./routes/woo_orders/woo_orders_route");
 const transExpressstatusRoutes = require("./routes/trans_ex_route/trans_active_test_route");
+
 require("./cron/oder_sync");
+
+const startDarazTokenCron = require("./utils/darazTokenCron");
 
 const app = express();
 
@@ -29,6 +32,10 @@ app.use("/api/woo", woo_orders_route);
 app.use("/api/trans-status", transExpressstatusRoutes);
 
 const PORT = process.env.PORT || 5000;
+
 app.listen(PORT, () => {
   console.log(`Server running → http://localhost:${PORT}`);
+
+  // Daraz token auto check every 30 minutes
+  startDarazTokenCron();
 });

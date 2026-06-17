@@ -1,23 +1,27 @@
 const crypto = require("crypto");
 
 const generateDarazSign = (apiPath, params, appSecret) => {
-  const sortedKeys = Object.keys(params)
-    .filter(key => key !== "sign")
-    .sort();
+    if (!apiPath || !params || !appSecret) {
+        throw new Error("Missing apiPath, params, or appSecret for Daraz signature");
+    }
 
-  let baseString = apiPath;
+    const sortedKeys = Object.keys(params)
+        .filter(key => key !== "sign")
+        .sort();
 
-  sortedKeys.forEach(key => {
-    baseString += key + params[key];
-  });
+    let baseString = apiPath;
 
-  console.log("SIGN STRING:", baseString);
+    sortedKeys.forEach(key => {
+        if (params[key] !== undefined && params[key] !== null) {
+            baseString += key + String(params[key]);
+        }
+    });
 
-  return crypto
-    .createHmac("sha256", appSecret)
-    .update(baseString)
-    .digest("hex")
-    .toUpperCase();
+    return crypto
+        .createHmac("sha256", appSecret)
+        .update(baseString, "utf8")
+        .digest("hex")
+        .toUpperCase();
 };
 
 module.exports = generateDarazSign;
