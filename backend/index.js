@@ -38,19 +38,56 @@ function isAllowedOrigin(origin) {
   return allowedOrigins.includes(origin) || teckvoraOriginPattern.test(origin);
 }
 
+const corsMethods = 'GET,POST,PUT,PATCH,DELETE,OPTIONS';
+const corsAllowedHeaders = 'Content-Type, Authorization, X-Requested-With, Accept, Origin';
+
+function applyCorsHeaders(req, res) {
+  const origin = req.headers.origin;
+
+  if (isAllowedOrigin(origin)) {
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', corsMethods);
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      req.headers['access-control-request-headers'] || corsAllowedHeaders,
+    );
+    res.setHeader('Access-Control-Max-Age', '86400');
+  }
+}
+
 const corsOptions = {
   origin(origin, callback) {
-    if (isAllowedOrigin(origin)) return callback(null, true);
-    return callback(Object.assign(new Error(`CORS blocked origin: ${origin}`), { statusCode: 403 }));
+    // Do not throw inside CORS callback. Throwing here can create a 500/502-looking
+    // preflight failure without Access-Control-Allow-Origin in the browser.
+    return callback(null, isAllowedOrigin(origin));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  methods: corsMethods.split(','),
+  allowedHeaders: corsAllowedHeaders.split(',').map((value) => value.trim()),
   optionsSuccessStatus: 204,
 };
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
+
+// CORS must run before helmet, body parser, auth middleware and route matching.
+// This guarantees POST /api/auth/login preflight OPTIONS receives CORS headers.
+app.use((req, res, next) => {
+  applyCorsHeaders(req, res);
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
+  return next();
+});
 
 app.use(
   helmet({
@@ -60,7 +97,6 @@ app.use(
 );
 
 app.use(cors(corsOptions));
-app.options(/.*/, cors(corsOptions));
 
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
