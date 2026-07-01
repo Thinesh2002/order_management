@@ -1,0 +1,16 @@
+module.exports = {
+  baseModel: require('./baseModel'),
+  customerModel: require('./customerModel'),
+  orderModel: require('./orderModel'),
+  orderItemModel: require('./orderItemModel'),
+  darazOrderModel: require('./darazOrderModel'),
+  wooOrderModel: require('./wooOrderModel'),
+  packingMaterialModel: require('./packingMaterialModel'),
+  transExpressModel: require('./transExpressModel'),
+  syncSettingModel: require('./syncSettingModel'),
+  logModel: require('./logModel'),
+  marketplaceAccountModel: require('./marketplaceAccountModel'),
+  skuMappingModel: require('./skuMappingModel'),
+  productModel: require('./productModel'),
+  inventoryModel: require('./inventoryModel'),
+};

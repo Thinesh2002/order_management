@@ -1,41 +1,24 @@
-require("dotenv").config();
-const express = require("express");
-const cors = require("cors");
+require('dotenv').config();
+const app = require('./app');
+const { startTrackingJob } = require('./jobs/transExpressTrackingJob');
+const { startMarketplaceOrderSyncJob } = require('./jobs/marketplaceOrderSyncJob');
+const { closeAllPools } = require('./config/db');
 
-const authRoutes = require("./routes/user_route");
-const darazRoutes = require("./routes/daraz/daraz_order_route");
-const darazTokenRoutes = require("./routes/daraz/toker_route");
-const productTrendRoutes = require("./routes/daraz/productTrendRoutes");
-const customerRoutes = require("./routes/customer/customer_route");
-const orderRoutes = require("./routes/manual_orders/order_route");
-const transorderRoutes = require("./routes/trans_ex_route/transex_route");
-const woo_orders_route = require("./routes/woo_orders/woo_orders_route");
-const transExpressstatusRoutes = require("./routes/trans_ex_route/trans_active_test_route");
+const PORT = Number(process.env.PORT || 5050);
 
-require("./cron/oder_sync");
-
-const startDarazTokenCron = require("./utils/darazTokenCron");
-
-const app = express();
-
-app.use(cors());
-app.use(express.json());
-
-app.use("/api/user", authRoutes);
-app.use("/api/daraz", darazRoutes);
-app.use("/api/daraz/tokens", darazTokenRoutes);
-app.use("/api/daraz/analytics", productTrendRoutes);
-app.use("/api/customers", customerRoutes);
-app.use("/api/orders", orderRoutes);
-app.use("/api/transorder", transorderRoutes);
-app.use("/api/woo", woo_orders_route);
-app.use("/api/trans-status", transExpressstatusRoutes);
-
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`Server running → http://localhost:${PORT}`);
-
-  // Daraz token auto check every 30 minutes
-  startDarazTokenCron();
+const server = app.listen(PORT, () => {
+  console.log(`Order Management backend running: http://localhost:${PORT}`);
+  startTrackingJob();
+  startMarketplaceOrderSyncJob();
 });
+
+async function shutdown(signal) {
+  console.log(`${signal} received. Closing Order Management backend...`);
+  server.close(async () => {
+    await closeAllPools();
+    process.exit(0);
+  });
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));

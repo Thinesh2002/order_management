@@ -1,66 +1,31 @@
-import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
-
-import Layout from "./pages/compnents/Layout";
-import Login from "./pages/login";
-import Dashboard from "./pages/dasboard";
-import User from "./pages/user/user_dashboard";
-import Manual_Order_Route from "./Routes/manual_orders";
-import ProtectedRoute from "./config/ProtectedRoute";
-import DarazRoute from "./Routes/daraz_route/index";
-import Trans_route from "./Routes/trans_ex_order_route/index";
-import Woo from "./Routes/woo/index";
-import Orders from "./pages/orders/index";
+import { Navigate, Route, Routes } from 'react-router-dom';
+import AppShell from './components/layout/AppShell.jsx';
+import OrdersPage from './pages/OrdersPage.jsx';
+import CreateManualOrderPage from './pages/CreateManualOrderPage.jsx';
+import OrderDetailPage from './pages/OrderDetailPage.jsx';
+import TrackingPage from './pages/TrackingPage.jsx';
+import PackingMaterialsPage from './pages/PackingMaterialsPage.jsx';
+import PlaceholderPage from './pages/PlaceholderPage.jsx';
+import AccountStatusPage from './pages/AccountStatusPage.jsx';
+import SyncSettingsPage from './pages/SyncSettingsPage.jsx';
+import LogsPage from './pages/LogsPage.jsx';
 
 export default function App() {
   return (
     <Routes>
-      {/* PUBLIC */}
-      <Route path="/login" element={<Login />} />
-
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <Dashboard />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/user-dashboard"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <User />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-
-            <Route
-        path="/all-orders"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <Orders />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-
-  
-
-
-
-  {DarazRoute}
-  {Manual_Order_Route}
-  {Trans_route}
-  {Woo}
-      {/* FALLBACK */}
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route element={<AppShell />}>
+        <Route path="/" element={<Navigate to="/order-management" replace />} />
+        <Route path="/order-management" element={<OrdersPage />} />
+        <Route path="/order-management/create" element={<CreateManualOrderPage />} />
+        <Route path="/order-management/orders/:source/:id" element={<OrderDetailPage />} />
+        <Route path="/order-management/tracking/:trackingId" element={<TrackingPage />} />
+        <Route path="/settings/packing-materials" element={<PackingMaterialsPage />} />
+        <Route path="/settings/account-status" element={<AccountStatusPage />} />
+        <Route path="/settings/sync" element={<SyncSettingsPage />} />
+        <Route path="/settings/users" element={<PlaceholderPage title="Users" message="Users stay inside existing Auth Management database." />} />
+        <Route path="/settings/page-access" element={<PlaceholderPage title="Page Access" message="Page access stays inside existing Auth Management database." />} />
+        <Route path="/settings/logs" element={<LogsPage />} />
+      </Route>
     </Routes>
   );
 }
