@@ -287,6 +287,230 @@ async function readyToShipDarazOrders({ order_ids = [] } = {}) {
   return result;
 }
 
+
+async function getShipmentProvidersDarazOrders(payload = {}) {
+  const selectedOrders = await getDarazOrdersByLocalIds(payload.order_ids);
+  const grouped = new Map();
+  for (const order of selectedOrders) {
+    if (!grouped.has(order.account_id)) grouped.set(order.account_id, []);
+    grouped.get(order.account_id).push(order);
+  }
+
+  const result = { action: 'get_shipment_providers', total: selectedOrders.length, processed: 0, accounts: [], errors: [] };
+
+  for (const [accountId, rawAccountOrders] of grouped.entries()) {
+    try {
+      const account = await getAccountForDarazOrder(rawAccountOrders[0]);
+      const accountOrders = [];
+      for (const order of rawAccountOrders) accountOrders.push(orderItemIds(order).length ? order : await refreshOrderItemsFromDaraz(account, order));
+
+      const orders = accountOrders.map((order) => ({
+        order_id: String(order.daraz_order_id),
+        order_item_ids: orderItemIds(order),
+      })).filter((row) => row.order_item_ids.length);
+
+      if (!orders.length) throw new Error('Daraz order item IDs missing. Sync order items first.');
+
+      const body = await callDaraz(account, process.env.DARAZ_SHIPMENT_PROVIDERS_PATH || '/order/shipment/providers/get', {
+        getShipmentProvidersReq: JSON.stringify({ orders }),
+      }, 'POST');
+
+      const providers = deepGetRowsWithKeys(body, ['provider_code', 'name']);
+      result.processed += accountOrders.length;
+      result.accounts.push({ account_id: accountId, account_name: account.account_name, count: accountOrders.length, providers, response: body });
+
+      for (const order of accountOrders) {
+        await writeOrderLog({ source_type: 'DARAZ', source_order_id: order.id, order_no: order.order_number || order.daraz_order_id, event_type: 'DARAZ_GET_SHIPMENT_PROVIDER', message: successMessageFromBody(body, 'Daraz shipment providers fetched.'), meta: body }).catch(() => null);
+      }
+    } catch (error) {
+      result.errors.push({ account_id: accountId, message: error.message });
+    }
+  }
+
+  await writeSystemLog({ action: 'DARAZ_GET_SHIPMENT_PROVIDERS', message: `Daraz shipment providers fetched for ${result.processed} selected orders`, meta: result }).catch(() => null);
+  return result;
+}
+
+async function recreatePackageDarazOrders(payload = {}) {
+  const selectedOrders = await getDarazOrdersByLocalIds(payload.order_ids);
+  const grouped = new Map();
+  for (const order of selectedOrders) {
+    if (!grouped.has(order.account_id)) grouped.set(order.account_id, []);
+    grouped.get(order.account_id).push(order);
+  }
+
+  const result = { action: 'recreate_package', total: selectedOrders.length, processed: 0, accounts: [], errors: [] };
+
+  for (const [accountId, rawAccountOrders] of grouped.entries()) {
+    try {
+      const account = await getAccountForDarazOrder(rawAccountOrders[0]);
+      const accountOrders = [];
+      for (const order of rawAccountOrders) accountOrders.push(packageIds(order).length ? order : await refreshOrderItemsFromDaraz(account, order));
+      const packages = accountOrders.flatMap((order) => packageIds(order)).map((package_id) => ({ package_id }));
+
+      if (!packages.length) throw new Error('Package IDs missing. Pack/sync Daraz order items first.');
+
+      const body = await callDaraz(account, process.env.DARAZ_REPACK_PATH || '/order/package/repack', {
+        rePackReq: JSON.stringify({ packages }),
+      }, 'POST');
+
+      const rows = deepGetRowsWithKeys(body, ['package_id', 'item_err_code', 'msg']);
+      for (const order of accountOrders) await updateItemsFromDarazRows(order, rows);
+
+      result.processed += accountOrders.length;
+      result.accounts.push({ account_id: accountId, account_name: account.account_name, count: accountOrders.length, packages, response: body });
+
+      for (const order of accountOrders) {
+        await writeOrderLog({ source_type: 'DARAZ', source_order_id: order.id, order_no: order.order_number || order.daraz_order_id, event_type: 'DARAZ_RECREATE_PACKAGE', message: successMessageFromBody(body, 'Daraz package recreated.'), meta: body }).catch(() => null);
+      }
+    } catch (error) {
+      result.errors.push({ account_id: accountId, message: error.message });
+    }
+  }
+
+  await writeSystemLog({ action: 'DARAZ_RECREATE_PACKAGE', message: `Daraz recreate package completed for ${result.processed} selected orders`, meta: result }).catch(() => null);
+  return result;
+}
+
+async function confirmDbsDeliveredDarazOrders(payload = {}) {
+  const selectedOrders = await getDarazOrdersByLocalIds(payload.order_ids);
+  const grouped = new Map();
+  for (const order of selectedOrders) {
+    if (!grouped.has(order.account_id)) grouped.set(order.account_id, []);
+    grouped.get(order.account_id).push(order);
+  }
+
+  const result = { action: 'confirm_dbs_delivered', total: selectedOrders.length, processed: 0, accounts: [], errors: [] };
+
+  for (const [accountId, rawAccountOrders] of grouped.entries()) {
+    try {
+      const account = await getAccountForDarazOrder(rawAccountOrders[0]);
+      const accountOrders = [];
+      for (const order of rawAccountOrders) accountOrders.push(packageIds(order).length ? order : await refreshOrderItemsFromDaraz(account, order));
+      const packages = accountOrders.flatMap((order) => packageIds(order)).map((package_id) => ({ package_id }));
+
+      if (!packages.length) throw new Error('Package IDs missing. DBS delivered API needs package_id.');
+
+      const body = await callDaraz(account, process.env.DARAZ_CONFIRM_DBS_DELIVERED_PATH || '/order/package/sof/delivered', {
+        dbsDeliveryReq: JSON.stringify({ packages }),
+      }, 'POST');
+
+      if (!responseLooksFailed(body)) {
+        await orderDb.query(
+          `UPDATE daraz_orders SET order_status = 'delivered', updated_at = NOW() WHERE id IN (${accountOrders.map(() => '?').join(',')})`,
+          accountOrders.map((row) => row.id),
+        );
+      }
+
+      result.processed += accountOrders.length;
+      result.accounts.push({ account_id: accountId, account_name: account.account_name, count: accountOrders.length, packages, response: body });
+
+      for (const order of accountOrders) {
+        await writeOrderLog({ source_type: 'DARAZ', source_order_id: order.id, order_no: order.order_number || order.daraz_order_id, event_type: 'DARAZ_CONFIRM_DBS_DELIVERED', message: successMessageFromBody(body, 'Daraz DBS delivery confirmed.'), new_value: 'delivered', meta: body }).catch(() => null);
+      }
+    } catch (error) {
+      result.errors.push({ account_id: accountId, message: error.message });
+    }
+  }
+
+  await writeSystemLog({ action: 'DARAZ_CONFIRM_DBS_DELIVERED', message: `Daraz DBS delivered completed for ${result.processed} selected orders`, meta: result }).catch(() => null);
+  return result;
+}
+
+async function failedDbsDeliveryDarazOrders(payload = {}) {
+  const selectedOrders = await getDarazOrdersByLocalIds(payload.order_ids);
+  const grouped = new Map();
+  for (const order of selectedOrders) {
+    if (!grouped.has(order.account_id)) grouped.set(order.account_id, []);
+    grouped.get(order.account_id).push(order);
+  }
+
+  const result = { action: 'failed_dbs_delivery', total: selectedOrders.length, processed: 0, accounts: [], errors: [] };
+
+  for (const [accountId, rawAccountOrders] of grouped.entries()) {
+    try {
+      const account = await getAccountForDarazOrder(rawAccountOrders[0]);
+      const accountOrders = [];
+      for (const order of rawAccountOrders) accountOrders.push(packageIds(order).length ? order : await refreshOrderItemsFromDaraz(account, order));
+      const packages = accountOrders.flatMap((order) => packageIds(order)).map((package_id) => ({ package_id }));
+
+      if (!packages.length) throw new Error('Package IDs missing. DBS failed delivery API needs package_id.');
+
+      const body = await callDaraz(account, process.env.DARAZ_FAILED_DBS_DELIVERY_PATH || '/order/package/sof/failed_delivery', {
+        dbsFailedDeliveryReq: JSON.stringify({ packages }),
+      }, 'POST');
+
+      if (!responseLooksFailed(body)) {
+        await orderDb.query(
+          `UPDATE daraz_orders SET order_status = 'failed_delivery', updated_at = NOW() WHERE id IN (${accountOrders.map(() => '?').join(',')})`,
+          accountOrders.map((row) => row.id),
+        );
+      }
+
+      result.processed += accountOrders.length;
+      result.accounts.push({ account_id: accountId, account_name: account.account_name, count: accountOrders.length, packages, response: body });
+
+      for (const order of accountOrders) {
+        await writeOrderLog({ source_type: 'DARAZ', source_order_id: order.id, order_no: order.order_number || order.daraz_order_id, event_type: 'DARAZ_FAILED_DBS_DELIVERY', message: successMessageFromBody(body, 'Daraz DBS delivery marked failed.'), new_value: 'failed_delivery', meta: body }).catch(() => null);
+      }
+    } catch (error) {
+      result.errors.push({ account_id: accountId, message: error.message });
+    }
+  }
+
+  await writeSystemLog({ action: 'DARAZ_FAILED_DBS_DELIVERY', message: `Daraz DBS failed delivery completed for ${result.processed} selected orders`, meta: result }).catch(() => null);
+  return result;
+}
+
+async function deliverDigitalDarazOrders(payload = {}) {
+  const selectedOrders = await getDarazOrdersByLocalIds(payload.order_ids);
+  const grouped = new Map();
+  for (const order of selectedOrders) {
+    if (!grouped.has(order.account_id)) grouped.set(order.account_id, []);
+    grouped.get(order.account_id).push(order);
+  }
+
+  const result = { action: 'deliver_digital', total: selectedOrders.length, processed: 0, accounts: [], errors: [] };
+
+  for (const [accountId, rawAccountOrders] of grouped.entries()) {
+    try {
+      const account = await getAccountForDarazOrder(rawAccountOrders[0]);
+      const accountOrders = [];
+      for (const order of rawAccountOrders) accountOrders.push(orderItemIds(order).length ? order : await refreshOrderItemsFromDaraz(account, order));
+
+      const orders = accountOrders.map((order) => ({
+        order_id: String(order.daraz_order_id),
+        order_item_list: orderItemIds(order),
+      })).filter((row) => row.order_item_list.length);
+
+      if (!orders.length) throw new Error('Daraz order item IDs missing. Digital delivered API needs order item IDs.');
+
+      const body = await callDaraz(account, process.env.DARAZ_DIGITAL_DELIVERED_PATH || '/order/digital/delivered', {
+        digitalDeliveryReq: JSON.stringify({ orders }),
+      }, 'POST');
+
+      if (!responseLooksFailed(body)) {
+        await orderDb.query(
+          `UPDATE daraz_orders SET order_status = 'delivered', updated_at = NOW() WHERE id IN (${accountOrders.map(() => '?').join(',')})`,
+          accountOrders.map((row) => row.id),
+        );
+      }
+
+      result.processed += accountOrders.length;
+      result.accounts.push({ account_id: accountId, account_name: account.account_name, count: accountOrders.length, response: body });
+
+      for (const order of accountOrders) {
+        await writeOrderLog({ source_type: 'DARAZ', source_order_id: order.id, order_no: order.order_number || order.daraz_order_id, event_type: 'DARAZ_DELIVER_DIGITAL', message: successMessageFromBody(body, 'Daraz digital order delivered.'), new_value: 'delivered', meta: body }).catch(() => null);
+      }
+    } catch (error) {
+      result.errors.push({ account_id: accountId, message: error.message });
+    }
+  }
+
+  await writeSystemLog({ action: 'DARAZ_DELIVER_DIGITAL', message: `Daraz digital delivery completed for ${result.processed} selected orders`, meta: result }).catch(() => null);
+  return result;
+}
+
 async function saveDarazDocument(order, document, source = 'print_awb') {
   if (!document) return null;
   try {
@@ -457,16 +681,26 @@ async function setDarazInvoiceNumbers({ order_ids = [], invoice_prefix = 'INV' }
 async function darazBulkAction(payload = {}) {
   const action = clean(payload.action).toLowerCase();
   if (action === 'pack') return packDarazOrders(payload);
+  if (action === 'get_shipment_providers' || action === 'shipment_providers' || action === 'providers') return getShipmentProvidersDarazOrders(payload);
   if (action === 'ready_to_ship' || action === 'rts') return readyToShipDarazOrders(payload);
-  if (action === 'print_awb' || action === 'awb') return printAwbDarazOrders(payload);
+  if (action === 'print_awb' || action === 'awb' || action === 'print_awp') return printAwbDarazOrders(payload);
+  if (action === 'recreate_package' || action === 'repack') return recreatePackageDarazOrders(payload);
+  if (action === 'confirm_dbs_delivered' || action === 'confirm_delivery_dbs' || action === 'dbs_delivered') return confirmDbsDeliveredDarazOrders(payload);
+  if (action === 'failed_dbs_delivery' || action === 'failed_delivery_dbs' || action === 'dbs_failed_delivery') return failedDbsDeliveryDarazOrders(payload);
+  if (action === 'deliver_digital' || action === 'digital_delivered' || action === 'deliver_digital_order') return deliverDigitalDarazOrders(payload);
   if (action === 'set_invoice_number' || action === 'invoice') return setDarazInvoiceNumbers(payload);
-  throw Object.assign(new Error('Invalid Daraz action. Use pack, ready_to_ship, print_awb, or set_invoice_number.'), { statusCode: 400 });
+  throw Object.assign(new Error('Invalid Daraz action. Use pack, get_shipment_providers, ready_to_ship, print_awb, recreate_package, confirm_dbs_delivered, failed_dbs_delivery, deliver_digital, or set_invoice_number.'), { statusCode: 400 });
 }
 
 module.exports = {
   darazBulkAction,
   packDarazOrders,
+  getShipmentProvidersDarazOrders,
   readyToShipDarazOrders,
   printAwbDarazOrders,
+  recreatePackageDarazOrders,
+  confirmDbsDeliveredDarazOrders,
+  failedDbsDeliveryDarazOrders,
+  deliverDigitalDarazOrders,
   setDarazInvoiceNumbers,
 };

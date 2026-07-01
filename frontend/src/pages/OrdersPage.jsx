@@ -309,7 +309,8 @@ export default function OrdersPage() {
     const validOrders = selectedDaraz.filter((order) => {
       if (action === 'pack') return canDarazPack(order);
       if (action === 'ready_to_ship') return canDarazReady(order);
-      return canDarazPrintAwb(order);
+      if (action === 'print_awb') return canDarazPrintAwb(order);
+      return order.source === 'daraz';
     });
 
     darazAction(
@@ -336,6 +337,7 @@ export default function OrdersPage() {
           canPack={selectedDaraz.some(canDarazPack)}
           canReady={selectedDaraz.some(canDarazReady)}
           canAwb={selectedDaraz.some(canDarazPrintAwb)}
+          hasDaraz={selectedDaraz.length > 0}
         />
       </div>
 

@@ -17,11 +17,23 @@ import {
 
 import { orderApi } from '../../api/orderApi';
 import { money, niceDate, text } from '../../utils/format';
-import { canDarazPrintAwb } from '../../utils/orderHelpers';
+import { canDarazPack, canDarazPrintAwb, canDarazReady } from '../../utils/orderHelpers';
 import { extractDarazActionMessage, openBlankPrintWindow, openDarazDocument, writePrintWindowMessage } from '../../utils/darazDocument';
 import DarazApiPanel from './components/DarazApiPanel.jsx';
 import DarazFinanceTable from './components/DarazFinanceTable.jsx';
 import TrackOrderModal from './components/TrackOrderModal.jsx';
+
+const DARAZ_DETAIL_ACTIONS = [
+  { value: 'get_shipment_providers', label: 'Get Shipment Providers' },
+  { value: 'pack', label: 'Pack' },
+  { value: 'ready_to_ship', label: 'Ready To Ship' },
+  { value: 'print_awb', label: 'Print AWB' },
+  { value: 'recreate_package', label: 'Recreate Package' },
+  { value: 'confirm_dbs_delivered', label: 'Confirm DBS Delivered' },
+  { value: 'failed_dbs_delivery', label: 'DBS Failed Delivery' },
+  { value: 'deliver_digital', label: 'Deliver Digital' },
+  { value: 'set_invoice_number', label: 'Set Invoice Number' },
+];
 
 function num(value) {
   if (value === null || value === undefined || value === '') return 0;
@@ -632,6 +644,7 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [trackOpen, setTrackOpen] = useState(false);
+  const [detailDarazAction, setDetailDarazAction] = useState('get_shipment_providers');
 
   async function load(refresh = true) {
     if (refresh) setRefreshing(true);
@@ -767,6 +780,33 @@ export default function OrderDetailPage() {
               >
                 <Printer size={16} /> Print AWB
               </button>
+            ) : null}
+
+            {isDaraz ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-2 py-1">
+                <select
+                  className="input h-9 min-w-[190px] py-1 text-xs"
+                  value={detailDarazAction}
+                  disabled={busy}
+                  onChange={(event) => setDetailDarazAction(event.target.value)}
+                >
+                  {DARAZ_DETAIL_ACTIONS.map((action) => {
+                    const disabled =
+                      (action.value === 'pack' && !canDarazPack(order)) ||
+                      (action.value === 'ready_to_ship' && !canDarazReady(order)) ||
+                      (action.value === 'print_awb' && !canDarazPrintAwb(order));
+                    return <option key={action.value} value={action.value} disabled={disabled}>{action.label}</option>;
+                  })}
+                </select>
+                <button
+                  type="button"
+                  className="btn-muted"
+                  disabled={busy}
+                  onClick={() => darazAction(detailDarazAction)}
+                >
+                  Run Daraz API
+                </button>
+              </div>
             ) : null}
           </div>
         </div>

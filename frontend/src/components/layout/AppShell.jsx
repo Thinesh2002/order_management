@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Search, Settings } from 'lucide-react';
+import { Home, LogOut, Search, Settings } from 'lucide-react';
 import SettingsMenu from './SettingsMenu.jsx';
+import { authApi } from '../../api/authApi.js';
+import { clearSession, getStoredUser } from '../../auth/authStorage.js';
 
 export default function AppShell() {
   const [open, setOpen] = useState(false);
   const [now, setNow] = useState(new Date());
   const [searchText, setSearchText] = useState('');
+  const [user] = useState(() => getStoredUser());
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -43,6 +46,18 @@ export default function AppShell() {
       }),
     [now]
   );
+
+
+  const handleLogout = async () => {
+    try {
+      await authApi.logout();
+    } catch (_error) {
+      // Even if server logging fails, clear browser session.
+    }
+
+    clearSession();
+    navigate('/login', { replace: true });
+  };
 
   const handleSearch = (event) => {
     event?.preventDefault();
@@ -113,6 +128,21 @@ export default function AppShell() {
             </p>
             <p className="mt-1 text-[11px] text-slate-300">{date}</p>
           </div>
+
+          <div className="hidden rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-right md:block">
+            <p className="max-w-32 truncate text-xs font-semibold text-white">{user?.name || user?.user_uid || 'User'}</p>
+            <p className="text-[10px] uppercase tracking-wide text-slate-300">{user?.role || 'Logged in'}</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-slate-100 transition hover:bg-red-500/20 hover:text-white"
+            aria-label="Logout"
+            title="Logout"
+          >
+            <LogOut size={19} />
+          </button>
 
           <div className="relative">
             <button

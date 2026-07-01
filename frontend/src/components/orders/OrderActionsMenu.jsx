@@ -7,6 +7,15 @@ import {
   canDarazReady,
 } from '../../utils/orderHelpers';
 
+const DARAZ_EXTRA_ACTIONS = [
+  { key: 'get_shipment_providers', label: 'Get Shipment Providers' },
+  { key: 'recreate_package', label: 'Recreate Package' },
+  { key: 'confirm_dbs_delivered', label: 'Confirm DBS Delivered' },
+  { key: 'failed_dbs_delivery', label: 'DBS Failed Delivery' },
+  { key: 'deliver_digital', label: 'Deliver Digital' },
+  { key: 'set_invoice_number', label: 'Set Invoice Number' },
+];
+
 const MANUAL_STATUS_OPTIONS = [
   { key: 'Pending', label: 'Pending' },
   { key: 'Processing', label: 'Processing' },
@@ -17,6 +26,10 @@ const MANUAL_STATUS_OPTIONS = [
   { key: 'Cancelled', label: 'Cancelled' },
   { key: 'Returned', label: 'Returned' },
 ];
+
+function isDarazOrder(order) {
+  return String(order?.source || order?.order_source || '').toLowerCase() === 'daraz';
+}
 
 function isManualOrder(order) {
   const source = String(order?.source || order?.order_source || '').toLowerCase();
@@ -57,6 +70,7 @@ export default function OrderActionsMenu({
   };
 
   const manualOrder = isManualOrder(order);
+  const darazOrder = isDarazOrder(order);
   const currentStatus = getCurrentStatus(order);
 
   const manualStatuses = useMemo(() => MANUAL_STATUS_OPTIONS, []);
@@ -147,7 +161,7 @@ export default function OrderActionsMenu({
             </>
           ) : null}
 
-          {canDarazPack(order) || canDarazReady(order) || canDarazPrintAwb(order) ? (
+          {darazOrder || canDarazPack(order) || canDarazReady(order) || canDarazPrintAwb(order) ? (
             <>
               <div className="my-1 border-t border-slate-100" />
 
@@ -189,6 +203,23 @@ export default function OrderActionsMenu({
               Print AWB
             </button>
           ) : null}
+
+          {darazOrder ? (
+            <>
+              {DARAZ_EXTRA_ACTIONS.map((action) => (
+                <button
+                  key={action.key}
+                  className="block w-full cursor-pointer px-3 py-2 text-left text-sm font-normal text-slate-700 transition hover:bg-slate-100 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={busy}
+                  type="button"
+                  onClick={() => run(() => onDarazAction(action.key, [order.source_order_id]))}
+                >
+                  {action.label}
+                </button>
+              ))}
+            </>
+          ) : null}
+
         </div>
       ) : null}
     </div>

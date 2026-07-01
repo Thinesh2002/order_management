@@ -5,6 +5,9 @@ const cors = require('cors');
 const helmet = require('helmet');
 
 const orderRoutes = require('./routes/orderManagementRoutes');
+const authRoutes = require('./routes/authRoutes');
+const userCompatRoutes = require('./routes/userCompatRoutes');
+const { protect } = require('./middlewares/authMiddleware');
 const { errorHandler } = require('./middlewares/errorHandler');
 const { notFoundHandler } = require('./middlewares/notFoundHandler');
 const { startTrackingJob } = require('./jobs/transExpressTrackingJob');
@@ -73,7 +76,9 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-app.use('/api/order-management', orderRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/user', userCompatRoutes);
+app.use('/api/order-management', protect, orderRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
