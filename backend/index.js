@@ -4,7 +4,7 @@ const { startTrackingJob } = require('./jobs/transExpressTrackingJob');
 const { startMarketplaceOrderSyncJob } = require('./jobs/marketplaceOrderSyncJob');
 const { closeAllPools } = require('./config/db');
 
-const PORT = Number(process.env.PORT || 5050);
+const PORT = Number(process.env.PORT);
 
 const server = app.listen(PORT, () => {
   console.log(`Order Management backend running: http://localhost:${PORT}`);
