@@ -132,16 +132,30 @@ function findArrayWithKeys(input, keys = []) {
   return [];
 }
 
+function valueFromKeys(obj = {}, keys = []) {
+  for (const key of keys) {
+    const value = obj?.[key];
+    if (value !== undefined && value !== null && value !== '') return value;
+  }
+  return null;
+}
+
 function deepFindDocument(input) {
   const queue = [input];
   const seen = new Set();
+  const fileKeys = ['file', 'document', 'file_base64', 'base64', 'content', 'pdf', 'pdf_file'];
+  const urlKeys = ['pdf_url', 'file_url', 'url', 'download_url', 'document_url'];
+
   while (queue.length) {
     const value = queue.shift();
     if (!value || typeof value !== 'object' || seen.has(value)) continue;
     seen.add(value);
-    const hasFile = value.file || value.pdf_url || value.file_url || value.document;
-    const hasType = value.doc_type || value.document_type || value.mime_type || value.type;
-    if (hasFile && (hasType || value.pdf_url || value.file_url)) return value;
+
+    const hasFile = valueFromKeys(value, fileKeys);
+    const hasUrl = valueFromKeys(value, urlKeys);
+    const hasType = value.doc_type || value.document_type || value.mime_type || value.mimeType || value.type;
+    if ((hasFile || hasUrl) && (hasType || hasUrl || hasFile)) return value;
+
     const children = Array.isArray(value) ? value : Object.values(value);
     children.forEach((child) => { if (child && typeof child === 'object') queue.push(child); });
   }
@@ -150,9 +164,12 @@ function deepFindDocument(input) {
 
 function documentFromResponse(body, fallback = {}) {
   const found = deepFindDocument(body) || {};
-  const file = found.file || found.document || body?.file || null;
-  const pdfUrl = found.pdf_url || found.file_url || body?.pdf_url || body?.file_url || null;
-  const mimeType = found.mime_type || found.mimeType || (String(found.doc_type || fallback.doc_type || '').toUpperCase() === 'PDF' ? 'application/pdf' : 'text/html');
+  const file = valueFromKeys(found, ['file', 'document', 'file_base64', 'base64', 'content', 'pdf', 'pdf_file'])
+    || valueFromKeys(body, ['file', 'document', 'file_base64', 'base64', 'content', 'pdf', 'pdf_file']);
+  const pdfUrl = valueFromKeys(found, ['pdf_url', 'file_url', 'url', 'download_url', 'document_url'])
+    || valueFromKeys(body, ['pdf_url', 'file_url', 'url', 'download_url', 'document_url']);
+  const typeValue = found.doc_type || found.document_type || found.type || fallback.doc_type || fallback.document_type || 'shippingLabel';
+  const mimeType = found.mime_type || found.mimeType || fallback.mime_type || (String(typeValue).toUpperCase() === 'PDF' ? 'application/pdf' : 'text/html');
   const documentType = found.document_type || found.doc_type || fallback.document_type || fallback.doc_type || 'shippingLabel';
   if (!file && !pdfUrl) return null;
   return {

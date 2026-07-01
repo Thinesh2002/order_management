@@ -2,16 +2,15 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MoreHorizontal } from 'lucide-react';
 import {
-  STATUS_TABS,
   canDarazPack,
   canDarazPrintAwb,
   canDarazReady,
 } from '../../utils/orderHelpers';
 
-const FALLBACK_STATUS_TABS = [
-  { key: 'New', label: 'New' },
-  { key: 'To Pack', label: 'To Pack' },
-  { key: 'To Arrange Shipment', label: 'To Arrange Shipment' },
+const MANUAL_STATUS_OPTIONS = [
+  { key: 'Pending', label: 'Pending' },
+  { key: 'Processing', label: 'Processing' },
+  { key: 'Packed', label: 'Packed' },
   { key: 'Ready To Ship', label: 'Ready To Ship' },
   { key: 'Shipped', label: 'Shipped' },
   { key: 'Delivered', label: 'Delivered' },
@@ -31,8 +30,12 @@ function isManualOrder(order) {
   );
 }
 
+function normalizeStatus(value) {
+  return String(value || '').trim().toLowerCase().replace(/[\s_-]+/g, ' ');
+}
+
 function getCurrentStatus(order) {
-  return String(order?.status || order?.order_status || '').trim();
+  return String(order?.display_status || order?.order_status || order?.status || '').trim();
 }
 
 export default function OrderActionsMenu({
@@ -56,20 +59,7 @@ export default function OrderActionsMenu({
   const manualOrder = isManualOrder(order);
   const currentStatus = getCurrentStatus(order);
 
-  const manualStatuses = useMemo(() => {
-    const sourceTabs = Array.isArray(STATUS_TABS) && STATUS_TABS.length
-      ? STATUS_TABS
-      : FALLBACK_STATUS_TABS;
-
-    const cleanTabs = sourceTabs
-      .filter((tab) => tab?.key)
-      .map((tab) => ({
-        key: tab.key,
-        label: tab.label || tab.key,
-      }));
-
-    return cleanTabs.length ? cleanTabs : FALLBACK_STATUS_TABS;
-  }, []);
+  const manualStatuses = useMemo(() => MANUAL_STATUS_OPTIONS, []);
 
   return (
     <div className="relative flex justify-end">
@@ -136,7 +126,7 @@ export default function OrderActionsMenu({
 
               {manualStatuses.map((tab) => {
                 const isCurrent =
-                  currentStatus.toLowerCase() === String(tab.key).toLowerCase();
+                  normalizeStatus(currentStatus) === normalizeStatus(tab.key);
 
                 return (
                   <button

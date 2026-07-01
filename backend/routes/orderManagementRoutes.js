@@ -18,8 +18,11 @@ router.get('/orders', asyncHandler(controller.listOrders));
 router.get('/products/search', asyncHandler(controller.searchProducts));
 router.get('/products/sku/:sku', asyncHandler(controller.productBySku));
 router.post('/manual-orders', validateRequest(validateManualOrderPayload), asyncHandler(controller.createManualOrder));
-router.get('/orders/:source/:id', asyncHandler(controller.getOrder));
 router.patch('/manual-orders/:id/status', asyncHandler(controller.updateManualStatus));
+router.post('/manual-orders/:id/status', asyncHandler(controller.updateManualStatus));
+router.patch('/orders/:source/:id/status', asyncHandler(controller.updateOrderStatus));
+router.post('/orders/:source/:id/status', asyncHandler(controller.updateOrderStatus));
+router.get('/orders/:source/:id', asyncHandler(controller.getOrder));
 router.post('/orders/:source/:id/waybill', asyncHandler(controller.createWaybill));
 
 router.get('/tracking/:trackingId', asyncHandler(controller.trackingDetail));

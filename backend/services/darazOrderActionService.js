@@ -327,15 +327,34 @@ async function printPackageDocument(account, orders, payload) {
   return { body, document, packages };
 }
 
+function configuredLegacyDocumentPaths() {
+  return [...new Set([
+    process.env.DARAZ_LEGACY_DOCUMENT_PATH,
+    '/order/document/get',
+    '/order/document/awb/get',
+  ].map(clean).filter(Boolean))];
+}
+
 async function printLegacyOrderDocument(account, order, payload) {
   const ids = orderItemIds(order);
   if (!ids.length) return null;
-  const body = await callDaraz(account, process.env.DARAZ_LEGACY_DOCUMENT_PATH || '/order/document/get', {
-    doc_type: clean(payload.legacy_doc_type || 'shippingLabel'),
-    order_item_ids: JSON.stringify(ids),
-  }, 'GET');
-  const document = documentFromResponse(body, { doc_type: 'shippingLabel', document_type: 'shippingLabel' });
-  return { body, document, order_item_ids: ids };
+
+  const attempts = [];
+  for (const path of configuredLegacyDocumentPaths()) {
+    try {
+      const body = await callDaraz(account, path, {
+        doc_type: clean(payload.legacy_doc_type || 'shippingLabel'),
+        order_item_ids: JSON.stringify(ids),
+      }, 'GET');
+      const document = documentFromResponse(body, { doc_type: 'shippingLabel', document_type: 'shippingLabel' });
+      attempts.push({ path, success: Boolean(document), body });
+      if (document) return { body, document, order_item_ids: ids, path, attempts };
+    } catch (error) {
+      attempts.push({ path, success: false, error: error.message });
+    }
+  }
+
+  return { body: null, document: null, order_item_ids: ids, attempts };
 }
 
 async function printAwbDarazOrders(payload = {}) {
@@ -374,14 +393,19 @@ async function printAwbDarazOrders(payload = {}) {
       if (!document) {
         source = 'legacy_order_document';
         const legacyDocs = [];
+        const legacyAttempts = [];
         for (const order of accountOrders) {
           const legacy = await printLegacyOrderDocument(account, order, payload);
+          if (legacy?.attempts) legacyAttempts.push({ order_id: order.id, attempts: legacy.attempts });
           if (legacy?.document) {
             const savedId = await saveDarazDocument(order, legacy.document, source);
-            legacyDocs.push({ order_id: order.id, account_id: accountId, source, document: withDocumentPointers(legacy.document, savedId), response: legacy.body });
+            legacyDocs.push({ order_id: order.id, account_id: accountId, source, document: withDocumentPointers(legacy.document, savedId), response: legacy.body, path: legacy.path });
           }
         }
         result.documents.push(...legacyDocs);
+        if (!legacyDocs.length) {
+          result.errors.push({ account_id: accountId, message: packageError || 'Daraz AWB document not returned. Check Daraz API log for document endpoint response.', legacy_attempts: legacyAttempts });
+        }
       } else {
         for (const order of accountOrders) {
           const savedId = await saveDarazDocument(order, document, source);

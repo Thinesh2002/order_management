@@ -34,6 +34,11 @@ async function updateManualStatus(req, res) {
   res.json({ success: true, data });
 }
 
+async function updateOrderStatus(req, res) {
+  const data = await orderService.updateOrderStatus(req.params.source, req.params.id, req.body.status, req.body.user_id || null, req.body || {});
+  res.json({ success: true, data });
+}
+
 async function createWaybill(req, res) {
   const data = await orderService.createWaybillForOrder(req.params.source, req.params.id, req.body.user_id || null, req.body || {});
   res.status(201).json({ success: true, data });
@@ -141,6 +146,7 @@ module.exports = {
   createManualOrder,
   getOrder,
   updateManualStatus,
+  updateOrderStatus,
   createWaybill,
   trackingDetail,
   checkTrackingNow,

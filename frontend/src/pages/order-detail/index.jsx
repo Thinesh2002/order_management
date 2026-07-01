@@ -18,7 +18,7 @@ import {
 import { orderApi } from '../../api/orderApi';
 import { money, niceDate, text } from '../../utils/format';
 import { canDarazPrintAwb } from '../../utils/orderHelpers';
-import { extractDarazActionMessage, openDarazDocument } from '../../utils/darazDocument';
+import { extractDarazActionMessage, openBlankPrintWindow, openDarazDocument, writePrintWindowMessage } from '../../utils/darazDocument';
 import DarazApiPanel from './components/DarazApiPanel.jsx';
 import DarazFinanceTable from './components/DarazFinanceTable.jsx';
 import TrackOrderModal from './components/TrackOrderModal.jsx';
@@ -659,6 +659,7 @@ export default function OrderDetailPage() {
   }, [searchParams, order]);
 
   async function darazAction(action) {
+    const printWindow = action === 'print_awb' ? openBlankPrintWindow('Preparing AWB print...') : null;
     setBusy(true);
 
     try {
@@ -667,15 +668,23 @@ export default function OrderDetailPage() {
         order_ids: [order.source_order_id || order.order_id || id],
       });
 
-      const opened = openDarazDocument(result);
+      const opened = action === 'print_awb'
+        ? openDarazDocument(result, printWindow)
+        : openDarazDocument(result);
 
-      if (!opened && (result.data?.errors?.length || result.data?.skipped?.length)) {
+      if (!opened && action === 'print_awb') {
+        const message = extractDarazActionMessage(result) || 'AWB document not returned by Daraz.';
+        writePrintWindowMessage(printWindow, message);
+        alert(message);
+      } else if (!opened && (result.data?.errors?.length || result.data?.skipped?.length)) {
         alert(extractDarazActionMessage(result));
       }
 
       await load(true);
     } catch (error) {
-      alert(error.response?.data?.message || error.message || 'Daraz action failed');
+      const message = error.response?.data?.message || error.message || 'Daraz action failed';
+      if (action === 'print_awb') writePrintWindowMessage(printWindow, message);
+      alert(message);
     } finally {
       setBusy(false);
     }

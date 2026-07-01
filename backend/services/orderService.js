@@ -45,6 +45,23 @@ function displayStatus(status = '') {
   return found ? found.label : clean(status || 'Pending');
 }
 
+function canonicalManualStatus(status = '') {
+  const key = normalizeStatusKey(status);
+  const labels = {
+    new: 'Pending',
+    to_pack: 'Processing',
+    to_arrange: 'Packed',
+    ready_to_ship: 'Ready To Ship',
+    shipped: 'Shipped',
+    delivered: 'Delivered',
+    cancelled: 'Cancelled',
+    returned: 'Returned',
+    hold: 'Hold',
+  };
+  return labels[key] || clean(status || 'Pending');
+}
+
+
 function sourceLabel({ source, source_type, account_name, account_code }) {
   const name = clean(account_name || account_code).toLowerCase().replace(/\s+/g, '_');
   if (source === 'manual') {
@@ -377,21 +394,41 @@ async function updateManualOrderStatus(orderId, status, userId = null, options =
   const [[existing]] = await orderDb.query('SELECT order_status, order_no, source_type FROM orders WHERE id = ?', [orderId]);
   if (!existing) throw Object.assign(new Error('Manual order not found.'), { statusCode: 404 });
 
-  const nextKey = normalizeStatusKey(status);
+  const finalStatus = canonicalManualStatus(status);
+  const nextKey = normalizeStatusKey(finalStatus);
   const isOtherManual = String(existing.source_type || '').toUpperCase() === 'MANUAL_OTHER';
-  if (nextKey === 'dispatched' && !isOtherManual) {
+  const needsWaybill = ['ready_to_ship', 'shipped'].includes(nextKey);
+
+  if (needsWaybill && !isOtherManual) {
     const [[waybill]] = await orderDb.query("SELECT id FROM trans_express_waybills WHERE source_type = 'MANUAL' AND source_order_id = ? LIMIT 1", [orderId]);
-    if (!waybill && !clean(options.waybill_id)) {
-      throw Object.assign(new Error('Waybill ID is required before moving this manual order to shipped/dispatched.'), { statusCode: 400, code: 'WAYBILL_REQUIRED' });
+    const waybillId = clean(options.waybill_id || options.tracking_number);
+
+    if (!waybill && !waybillId) {
+      throw Object.assign(new Error('Waybill ID is required before moving this manual order to Ready To Ship/Shipped.'), { statusCode: 400, code: 'WAYBILL_REQUIRED' });
     }
-    if (!waybill && clean(options.waybill_id)) {
-      await createWaybillForOrder('manual', orderId, userId, { waybill_id: options.waybill_id, courier_status: 'Created Manual' });
+
+    if (!waybill && waybillId) {
+      await createWaybillForOrder('manual', orderId, userId, {
+        waybill_id: waybillId,
+        tracking_number: clean(options.tracking_number || waybillId),
+        courier_status: 'Created Manual',
+      });
     }
   }
 
-  await orderDb.query('UPDATE orders SET order_status = ?, shipped_at = IF(?, NOW(), shipped_at), updated_by = ?, updated_at = NOW() WHERE id = ?', [status, nextKey === 'dispatched' ? 1 : 0, userId, orderId]);
-  await writeOrderLog({ source_type: 'MANUAL', source_order_id: orderId, order_no: existing.order_no, event_type: 'STATUS_UPDATED', old_value: existing.order_status, new_value: status, message: `Manual order status changed to ${status}`, created_by: userId });
+  const shippedFlag = nextKey === 'shipped' ? 1 : 0;
+  await orderDb.query(
+    'UPDATE orders SET order_status = ?, shipped_at = IF(?, NOW(), shipped_at), updated_by = ?, updated_at = NOW() WHERE id = ?',
+    [finalStatus, shippedFlag, userId, orderId],
+  );
+  await writeOrderLog({ source_type: 'MANUAL', source_order_id: orderId, order_no: existing.order_no, event_type: 'STATUS_UPDATED', old_value: existing.order_status, new_value: finalStatus, message: `Manual order status changed to ${finalStatus}`, created_by: userId });
   return getOrderDetail('manual', orderId);
+}
+
+async function updateOrderStatus(source, orderId, status, userId = null, options = {}) {
+  const sourceKey = clean(source).toLowerCase();
+  if (sourceKey === 'manual') return updateManualOrderStatus(orderId, status, userId, options);
+  throw Object.assign(new Error('Direct status change is only supported for manual orders. Use Daraz Pack / Ready To Ship actions for Daraz orders.'), { statusCode: 400 });
 }
 
 async function createWaybillForOrder(source, id, userId = null, options = {}) {
@@ -445,6 +482,7 @@ module.exports = {
   createManualOrder,
   getOrderDetail,
   updateManualOrderStatus,
+  updateOrderStatus,
   createWaybillForOrder,
   getDashboardSummary,
   saveExternalDarazOrder,

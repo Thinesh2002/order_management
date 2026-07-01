@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { orderApi } from '../api/orderApi';
-import { openDarazDocument, extractDarazActionMessage } from '../utils/darazDocument';
+import {
+  closePrintWindow,
+  extractDarazActionMessage,
+  openBlankPrintWindow,
+  openDarazDocument,
+  writePrintWindowMessage,
+} from '../utils/darazDocument';
 import BulkActionBar from '../components/orders/BulkActionBar.jsx';
 import FilterDrawer from '../components/orders/FilterDrawer.jsx';
 import ImagePreview from '../components/orders/ImagePreview.jsx';
@@ -236,21 +242,23 @@ export default function OrdersPage() {
   }
 
   async function changeManualStatus(order, nextStatus) {
-    const needWaybill =
-      nextStatus === 'Dispatched' ||
-      nextStatus === 'Ready To Ship' ||
-      nextStatus === 'Shipped';
+    const nextKey = normalize(nextStatus).replace(/[\s-]+/g, '_');
+    const needWaybill = ['ready_to_ship', 'shipped', 'dispatched'].includes(nextKey);
 
     const hasWaybill = order.waybill_id || order.tracking_number;
     const isOtherManual = normalize(order.source_label).includes('other');
+    let createdWaybillId = '';
 
     if (needWaybill && !hasWaybill && !isOtherManual) {
-      await createWaybill(order);
+      createdWaybillId = window.prompt('Enter manual waybill ID before changing status');
+      if (!createdWaybillId) return;
     }
 
     try {
       await orderApi.updateManualStatus(order.source_order_id, {
         status: nextStatus,
+        waybill_id: createdWaybillId || undefined,
+        tracking_number: createdWaybillId || undefined,
       });
 
       await load();
@@ -262,6 +270,7 @@ export default function OrdersPage() {
   async function darazAction(action, orderIds) {
     if (!orderIds.length) return;
 
+    const printWindow = action === 'print_awb' ? openBlankPrintWindow('Preparing AWB print...') : null;
     setBusy(true);
 
     try {
@@ -270,15 +279,27 @@ export default function OrdersPage() {
         order_ids: orderIds,
       });
 
-      const opened = openDarazDocument(result);
+      const opened = action === 'print_awb'
+        ? openDarazDocument(result, printWindow)
+        : openDarazDocument(result);
 
-      if (!opened && (result.data?.errors?.length || result.data?.skipped?.length)) {
+      if (!opened && action === 'print_awb') {
+        const message = extractDarazActionMessage(result) || 'AWB document not returned by Daraz.';
+        writePrintWindowMessage(printWindow, message);
+        alert(message);
+      } else if (!opened && (result.data?.errors?.length || result.data?.skipped?.length)) {
         alert(extractDarazActionMessage(result));
       }
 
       await load();
     } catch (error) {
-      alert(error.response?.data?.message || error.message || 'Daraz action failed');
+      const message = error.response?.data?.message || error.message || 'Daraz action failed';
+      if (action === 'print_awb') {
+        writePrintWindowMessage(printWindow, message);
+      } else {
+        closePrintWindow(printWindow);
+      }
+      alert(message);
     } finally {
       setBusy(false);
     }
