@@ -1,4 +1,4 @@
-const { logDb } = require('../config/db');
+const { logDb, orderDb } = require('../config/db');
 const { safeInsert, safeJson } = require('../utils/dbUtils');
 
 async function writeSystemLog(payload = {}) {
@@ -38,13 +38,21 @@ async function writeOrderLog(payload = {}) {
     new_value: payload.new_value || null,
     message: payload.message || null,
     note: payload.note || payload.message || null,
+    raw_payload: safeJson(payload.raw_payload || payload.meta || payload),
     meta: safeJson(payload.meta || payload),
     created_by: payload.created_by || null,
     created_at: new Date(),
   };
 
   try {
-    return await safeInsert(logDb, 'order_logs', data);
+    const inserted = await safeInsert(logDb, 'order_logs', data);
+    if (inserted) return inserted;
+  } catch (error) {
+    console.warn('[ORDER_LOG_LOGDB_SKIPPED]', error.message);
+  }
+
+  try {
+    return await safeInsert(orderDb, 'order_logs', data);
   } catch (error) {
     console.warn('[ORDER_LOG_SKIPPED]', error.message);
     return null;
@@ -123,11 +131,11 @@ async function listLogs({ limit = 100, type = 'all' } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
   const result = { system_logs: [], order_logs: [], sync_logs: [], trans_express_logs: [], inventory_logs: [] };
 
-  async function queryIfExists(table, sql) {
+  async function queryIfExists(db, table, sql) {
     try {
-      const [exists] = await logDb.query('SHOW TABLES LIKE ?', [table]);
+      const [exists] = await db.query('SHOW TABLES LIKE ?', [table]);
       if (!exists.length) return [];
-      const [rows] = await logDb.query(sql.replace('__LIMIT__', String(safeLimit)));
+      const [rows] = await db.query(sql.replace('__LIMIT__', String(safeLimit)));
       return rows;
     } catch (_error) {
       return [];
@@ -135,25 +143,33 @@ async function listLogs({ limit = 100, type = 'all' } = {}) {
   }
 
   if (type === 'all' || type === 'system') {
-    result.system_logs = await queryIfExists('system_logs', 'SELECT * FROM system_logs ORDER BY created_at DESC LIMIT __LIMIT__');
+    result.system_logs = await queryIfExists(logDb, 'system_logs', 'SELECT * FROM system_logs ORDER BY created_at DESC LIMIT __LIMIT__');
   }
   if (type === 'all' || type === 'order') {
-    result.order_logs = await queryIfExists('order_logs', 'SELECT * FROM order_logs ORDER BY created_at DESC LIMIT __LIMIT__');
+    result.order_logs = [
+      ...(await queryIfExists(orderDb, 'order_logs', 'SELECT * FROM order_logs ORDER BY created_at DESC LIMIT __LIMIT__')),
+      ...(await queryIfExists(logDb, 'order_logs', 'SELECT * FROM order_logs ORDER BY created_at DESC LIMIT __LIMIT__')),
+    ].slice(0, safeLimit);
   }
   if (type === 'all' || type === 'sync') {
     result.sync_logs = [
-      ...(await queryIfExists('daraz_order_sync_runs', 'SELECT * FROM daraz_order_sync_runs ORDER BY created_at DESC LIMIT __LIMIT__')),
-      ...(await queryIfExists('woo_order_sync_runs', 'SELECT * FROM woo_order_sync_runs ORDER BY created_at DESC LIMIT __LIMIT__')),
-    ];
+      ...(await queryIfExists(orderDb, 'daraz_order_sync_runs', 'SELECT * FROM daraz_order_sync_runs ORDER BY created_at DESC LIMIT __LIMIT__')),
+      ...(await queryIfExists(orderDb, 'woo_order_sync_runs', 'SELECT * FROM woo_order_sync_runs ORDER BY created_at DESC LIMIT __LIMIT__')),
+      ...(await queryIfExists(logDb, 'daraz_order_sync_runs', 'SELECT * FROM daraz_order_sync_runs ORDER BY created_at DESC LIMIT __LIMIT__')),
+      ...(await queryIfExists(logDb, 'woo_order_sync_runs', 'SELECT * FROM woo_order_sync_runs ORDER BY created_at DESC LIMIT __LIMIT__')),
+    ].sort((a, b) => new Date(b.created_at || b.started_at || 0) - new Date(a.created_at || a.started_at || 0)).slice(0, safeLimit);
   }
   if (type === 'all' || type === 'daraz') {
-    result.daraz_api_logs = await queryIfExists('daraz_api_logs', 'SELECT * FROM daraz_api_logs ORDER BY created_at DESC LIMIT __LIMIT__');
+    result.daraz_api_logs = await queryIfExists(logDb, 'daraz_api_logs', 'SELECT * FROM daraz_api_logs ORDER BY created_at DESC LIMIT __LIMIT__');
   }
   if (type === 'all' || type === 'trans_express') {
-    result.trans_express_logs = await queryIfExists('trans_express_api_logs', 'SELECT * FROM trans_express_api_logs ORDER BY created_at DESC LIMIT __LIMIT__');
+    result.trans_express_logs = await queryIfExists(logDb, 'trans_express_api_logs', 'SELECT * FROM trans_express_api_logs ORDER BY created_at DESC LIMIT __LIMIT__');
   }
   if (type === 'all' || type === 'inventory') {
-    result.inventory_logs = await queryIfExists('inventory_stock_deduction_logs', 'SELECT * FROM inventory_stock_deduction_logs ORDER BY created_at DESC LIMIT __LIMIT__');
+    result.inventory_logs = [
+      ...(await queryIfExists(orderDb, 'inventory_stock_deduction_logs', 'SELECT * FROM inventory_stock_deduction_logs ORDER BY created_at DESC LIMIT __LIMIT__')),
+      ...(await queryIfExists(logDb, 'inventory_stock_deduction_logs', 'SELECT * FROM inventory_stock_deduction_logs ORDER BY created_at DESC LIMIT __LIMIT__')),
+    ].slice(0, safeLimit);
   }
 
   return result;

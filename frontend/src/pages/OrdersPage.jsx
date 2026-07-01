@@ -304,8 +304,6 @@ export default function OrdersPage() {
           status={status}
           setStatus={setStatus}
           counts={counts}
-          query={query}
-          setQuery={setQuery}
           onOpenFilter={() => setFilterOpen(true)}
           activeFilterCount={activeFilterCount(filters)}
         />
